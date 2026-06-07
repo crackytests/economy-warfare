@@ -1,0 +1,294 @@
+/*
+ * App shell layout — responsive for a constrained modal viewport.
+ *
+ * The shell fills its container (the iframe) and never assumes a full screen.
+ * Layout is flex-column: a compact sticky header + a scrollable main region.
+ * Breakpoints collapse the nav into a wrap-friendly row on narrow viewports.
+ */
+
+.ew-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 100%;
+  min-width: 0;
+  background:
+    radial-gradient(
+      90% 60% at 50% -10%,
+      color-mix(in srgb, var(--accent-2) 10%, transparent),
+      transparent 70%
+    ),
+    var(--bg-0);
+}
+
+/* ---- Header ---- */
+.ew-shell__header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  background: color-mix(in srgb, var(--bg-1) 92%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.ew-shell__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  padding: 0;
+}
+
+.ew-shell__logo {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-1);
+  background: linear-gradient(135deg, var(--accent), #ff9a3c);
+  color: #1a1300;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 15px;
+}
+
+.ew-shell__title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.ew-shell__nav {
+  display: flex;
+  gap: var(--sp-1);
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.ew-shell__navbtn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-1);
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--ink-1);
+  cursor: pointer;
+  transition: all 0.12s ease;
+  white-space: nowrap;
+}
+.ew-shell__navbtn:hover {
+  background: var(--bg-3);
+  color: var(--ink-0);
+}
+.ew-shell__navbtn.is-active {
+  background: color-mix(in srgb, var(--accent-2) 18%, transparent);
+  border-color: color-mix(in srgb, var(--accent-2) 50%, transparent);
+  color: var(--ink-0);
+}
+
+.ew-shell__close {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-1);
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  color: var(--ink-1);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.ew-shell__close:hover {
+  background: var(--danger);
+  color: #fff;
+  border-color: var(--danger);
+}
+
+/* ---- Main scroll region ---- */
+.ew-shell__main {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- Generic screen scaffolding (used by all screens) ---- */
+.ew-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp-5);
+  gap: var(--sp-4);
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.ew-screen--game {
+  max-width: none;
+  height: 100%;
+  min-height: 0;
+  padding: var(--sp-2);
+  overflow: hidden;
+}
+
+.ew-screen__title {
+  font-family: var(--font-display);
+  font-size: clamp(20px, 4vw, 30px);
+  font-weight: 700;
+  margin: 0;
+}
+
+.ew-screen__lead {
+  color: var(--ink-1);
+  margin: 0;
+  max-width: 60ch;
+  line-height: 1.5;
+}
+
+/* Placeholder panel for not-yet-built screens (WS4/WS5). */
+.ew-placeholder {
+  flex: 1;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  gap: var(--sp-3);
+  border: 1px dashed var(--line);
+  border-radius: var(--r-3);
+  background: var(--bg-1);
+  padding: var(--sp-6);
+  color: var(--ink-2);
+}
+.ew-placeholder code {
+  font-family: var(--font-mono);
+  color: var(--accent-2);
+  background: var(--bg-2);
+  padding: 2px 6px;
+  border-radius: var(--r-1);
+}
+
+/* ---- Buttons ---- */
+.ew-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: 10px 18px;
+  border-radius: var(--r-2);
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  color: var(--ink-0);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.ew-btn:hover {
+  background: var(--bg-3);
+}
+.ew-btn--primary {
+  background: linear-gradient(135deg, var(--accent), #ff9a3c);
+  color: #1a1300;
+  border-color: transparent;
+}
+.ew-btn--primary:hover {
+  filter: brightness(1.07);
+}
+
+/* ---- Home menu grid ---- */
+.ew-home__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--sp-4);
+}
+
+.ew-home__tile {
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-5);
+  border-radius: var(--r-3);
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(160deg, var(--bg-2), var(--bg-1));
+  cursor: pointer;
+  transition: all 0.14s ease;
+}
+.ew-home__tile:hover {
+  transform: translateY(-3px);
+  border-color: var(--accent-2);
+  box-shadow: var(--shadow-2);
+}
+.ew-home__tile h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 18px;
+}
+.ew-home__tile p {
+  margin: 0;
+  color: var(--ink-1);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.ew-home__tile-tag {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+/* Faction palette strip on Home (shows the design-system theming). */
+.ew-faction-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.ew-faction-swatch {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--sw) 50%, var(--line));
+  background: color-mix(in srgb, var(--sw) 14%, var(--bg-1));
+  font-size: 12px;
+}
+.ew-faction-swatch::before {
+  content: "";
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--sw);
+  box-shadow: 0 0 8px var(--sw);
+}
+
+/* Card preview gallery on Home. */
+.ew-card-gallery {
+  display: flex;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+/* ---- Narrow / mobile ---- */
+@media (max-width: 560px) {
+  .ew-screen {
+    padding: var(--sp-4);
+  }
+  .ew-shell__title {
+    display: none;
+  }
+  .ew-shell__navbtn {
+    padding: 5px 8px;
+    font-size: 12px;
+  }
+}

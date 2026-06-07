@@ -1,0 +1,318 @@
+/* Card frame — faction-themed, presentational. See Card.tsx. */
+
+.ew-card {
+  --w: 200px;
+  width: var(--w);
+  display: flex;
+  flex-direction: column;
+  background:
+    linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--faction-base) 92%, black),
+      color-mix(in srgb, var(--faction-base) 70%, var(--bg-0))
+    );
+  border: 1px solid color-mix(in srgb, var(--faction-primary) 55%, var(--line));
+  border-radius: var(--r-card);
+  color: var(--faction-ink);
+  box-shadow: var(--shadow-2);
+  overflow: hidden;
+  position: relative;
+  user-select: none;
+  transition:
+    transform 0.14s ease,
+    box-shadow 0.14s ease,
+    border-color 0.14s ease;
+}
+
+.ew-card::before {
+  /* top accent strip */
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    var(--faction-primary),
+    var(--faction-secondary)
+  );
+}
+
+.ew-card--sm {
+  --w: 92px;
+}
+.ew-card--lg {
+  --w: 280px;
+}
+
+.ew-card--interactive {
+  cursor: pointer;
+}
+.ew-card--interactive:hover,
+.ew-card--interactive:focus-visible {
+  transform: translateY(-3px);
+  border-color: var(--faction-primary);
+  box-shadow: var(--shadow-glow), var(--shadow-2);
+  outline: none;
+}
+
+.ew-card--exhausted {
+  transform: rotate(8deg);
+  filter: saturate(0.6) brightness(0.74);
+}
+
+.ew-card--exhausted::after {
+  content: "TAPPED";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-8deg);
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: var(--ink-0);
+  background: color-mix(in srgb, var(--bg-0) 70%, transparent);
+  padding: 2px 8px;
+  border-radius: var(--r-1);
+  border: 1px solid color-mix(in srgb, var(--ink-2) 60%, transparent);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.ew-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-3);
+}
+
+.ew-card__cost {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #1a1300;
+  font-weight: 800;
+  font-size: 13px;
+  box-shadow: var(--shadow-1);
+}
+
+.ew-card__name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1.1;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ew-card--lg .ew-card__name {
+  font-size: 17px;
+  white-space: normal;
+}
+
+.ew-card__art {
+  position: relative;
+  aspect-ratio: 2 / 3;
+  background: #000;
+  overflow: hidden;
+}
+
+.ew-card__art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ew-card--sm .ew-card__head {
+  padding: 4px 5px;
+  gap: 4px;
+}
+
+.ew-card--sm .ew-card__cost {
+  width: 18px;
+  height: 18px;
+  font-size: 10px;
+}
+
+.ew-card--sm .ew-card__name {
+  font-size: 11px;
+}
+
+.ew-card--sm .ew-card__body {
+  padding: 4px 5px;
+  gap: 3px;
+}
+
+.ew-card--sm .ew-card__typeline {
+  font-size: 8px;
+  letter-spacing: 0.5px;
+}
+
+.ew-card--sm .ew-card__kw {
+  font-size: 7px;
+  padding: 0 3px;
+}
+
+.ew-card--sm .ew-card__faction-chip {
+  right: 4px;
+  bottom: 4px;
+  font-size: 7px;
+  padding: 1px 4px;
+}
+
+.ew-card--sm .ew-card__stat-value {
+  font-size: 11px;
+}
+
+.ew-card--sm .ew-card__stat-label {
+  font-size: 6px;
+}
+
+.ew-card__art-placeholder {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 2px;
+  text-align: center;
+  background:
+    radial-gradient(
+      120% 90% at 50% 0%,
+      color-mix(in srgb, var(--faction-primary) 30%, transparent),
+      transparent 60%
+    ),
+    repeating-linear-gradient(
+      45deg,
+      color-mix(in srgb, var(--faction-base) 80%, black) 0 10px,
+      color-mix(in srgb, var(--faction-base) 65%, black) 10px 20px
+    );
+}
+
+.ew-card__art-mark {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: 1px;
+  color: var(--faction-primary);
+  text-transform: uppercase;
+}
+.ew-card__art-sub {
+  font-size: 10px;
+  color: var(--faction-ink);
+  opacity: 0.6;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.ew-card__faction-chip {
+  position: absolute;
+  right: var(--sp-2);
+  bottom: var(--sp-2);
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--faction-base) 70%, black);
+  border: 1px solid color-mix(in srgb, var(--faction-primary) 60%, transparent);
+  color: var(--faction-secondary);
+}
+
+.ew-card__body {
+  padding: var(--sp-2) var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  flex: 1;
+}
+
+.ew-card__typeline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--faction-ink) 70%, transparent);
+}
+
+.ew-card__keywords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  justify-content: flex-end;
+}
+
+.ew-card__kw {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--faction-primary) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--faction-primary) 45%, transparent);
+  color: var(--faction-secondary);
+  letter-spacing: 0.5px;
+}
+
+.ew-card__text {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: color-mix(in srgb, var(--faction-ink) 88%, transparent);
+}
+
+.ew-card__stats {
+  display: flex;
+  gap: 1px;
+  background: color-mix(in srgb, var(--faction-primary) 30%, transparent);
+  margin-top: auto;
+}
+
+.ew-card__stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--sp-1) 0;
+  background: color-mix(in srgb, var(--faction-base) 85%, black);
+}
+
+.ew-card__stat-value {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1;
+}
+.ew-card__stat-label {
+  font-size: 8px;
+  letter-spacing: 1.5px;
+  opacity: 0.65;
+}
+
+.ew-card__stat--atk .ew-card__stat-value {
+  color: #ff8f6b;
+}
+.ew-card__stat--def .ew-card__stat-value {
+  color: #8fd0ff;
+}
+.ew-card__stat--income .ew-card__stat-value {
+  color: var(--accent);
+}
+
+/* Aura/buff-adjusted stats: green when boosted above the printed base, red when
+   reduced below it (e.g. Network Bloom, Fortify, Rally, Director X, damage). */
+.ew-card__stat.is-buffed .ew-card__stat-value {
+  color: #5dff9e;
+  text-shadow: 0 0 6px rgba(93, 255, 158, 0.55);
+}
+.ew-card__stat.is-debuffed .ew-card__stat-value {
+  color: #ff6b6b;
+  text-shadow: 0 0 6px rgba(255, 107, 107, 0.45);
+}

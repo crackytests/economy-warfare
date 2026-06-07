@@ -1,0 +1,25 @@
+{
+  "name": "@ew/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Economy Warfare online server — Node + ws, authoritative.",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ew/engine": "*",
+    "@ew/shared": "*",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.0",
+    "@types/ws": "^8.5.12",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

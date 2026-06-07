@@ -1,0 +1,102 @@
+/*
+ * Design tokens — Economy Warfare.
+ *
+ * Global CSS variables for spacing, color, radius, type and the four faction +
+ * Neutral accents. Faction accents here are the *defaults*; individual elements
+ * override --faction-* via factionVars() (theme/factions.ts) for card frames.
+ *
+ * The whole app is dark-first (it lives inside a modal over the owner's site).
+ */
+
+:root {
+  /* ---- Surfaces / neutrals ---- */
+  --bg-0: #07080c; /* deepest backdrop */
+  --bg-1: #0e1018; /* panel */
+  --bg-2: #161a26; /* raised panel */
+  --bg-3: #222838; /* hover / control */
+  --line: #2c3344;
+  --ink-0: #f4f6fb; /* primary text */
+  --ink-1: #b8c0d4; /* secondary text */
+  --ink-2: #7c869c; /* muted */
+
+  /* ---- Brand accents ---- */
+  --accent: #ffcf4a; /* gold — money / economy motif */
+  --accent-2: #4aa3ff;
+  --danger: #ff5470;
+  --ok: #5cf2a6;
+
+  /* ---- Faction reference swatches ---- */
+  --yoko: #4aa3ff;
+  --spooky: #b86bff;
+  --linda: #6dff8f;
+  --systemx: #ff3b3b;
+  --neutral: #b7a98a;
+
+  /* ---- Per-element faction vars (defaults; overridden inline) ---- */
+  --faction-primary: var(--neutral);
+  --faction-secondary: var(--ink-1);
+  --faction-base: var(--bg-2);
+  --faction-ink: var(--ink-0);
+
+  /* ---- Spacing scale ---- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+
+  /* ---- Radius ---- */
+  --r-1: 6px;
+  --r-2: 10px;
+  --r-3: 16px;
+  --r-card: 12px;
+
+  /* ---- Type ---- */
+  --font-ui:
+    "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-display:
+    "Rajdhani", "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", ui-monospace, monospace;
+
+  /* ---- Elevation ---- */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 6px 20px rgba(0, 0, 0, 0.45);
+  --shadow-glow: 0 0 18px color-mix(in srgb, var(--faction-primary) 55%, transparent);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg-0);
+  color: var(--ink-0);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+#root {
+  /* The whole SPA fills the iframe; it must never assume the full screen. */
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--accent-2);
+}

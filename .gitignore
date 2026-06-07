@@ -1,0 +1,12 @@
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+.env
+.env.local
+.DS_Store
+coverage/
+.vite/
+# Source card art lives in /images (large PNGs). The web build consumes
+# optimized copies under apps/web/public/cards/ (generated — not committed).
+apps/web/public/cards/

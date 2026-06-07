@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Economy Warfare — Host Demo</title>
+<!--
+  Reference HOST PAGE for embedding Economy Warfare as a modal <iframe>.
+
+  This file plays the role of "the owner's website". It opens the game in a
+  modal, performs the postMessage handshake documented in docs/EMBED.md, and
+  shows a live event log so you can SEE the bridge working.
+
+  In dev the game is same-origin at "/", so we point the iframe at GAME_SRC
+  below. In production, host this page on your site and set GAME_SRC to wherever
+  you serve apps/web's dist/ (e.g. "https://your-site/play/"). When the game is
+  cross-origin, set TARGET_ORIGIN to the game's origin instead of "*".
+-->
+<style>
+  :root { --bg:#0b0d12; --panel:#141925; --line:#26304a; --text:#e7ecf5; --muted:#8c98b3; --accent:#f5b301; --accent2:#5b8cff; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.5 system-ui,Segoe UI,Roboto,sans-serif; background:radial-gradient(1200px 600px at 70% -10%, #1a2335, var(--bg)); color:var(--text); min-height:100vh; }
+  header { display:flex; align-items:center; gap:12px; padding:18px 28px; border-bottom:1px solid var(--line); }
+  header .logo { width:34px; height:34px; border-radius:8px; background:var(--accent); color:#1a1304; font-weight:800; display:grid; place-items:center; }
+  header h1 { font-size:18px; margin:0; }
+  header .nav { margin-left:auto; display:flex; gap:18px; color:var(--muted); }
+  main { max-width:920px; margin:0 auto; padding:48px 28px; }
+  .hero h2 { font-size:38px; margin:0 0 8px; }
+  .hero p { color:var(--muted); font-size:17px; max-width:620px; }
+  .cta { margin-top:26px; display:flex; gap:12px; flex-wrap:wrap; }
+  button.play { font:inherit; font-weight:700; cursor:pointer; border:none; border-radius:10px; padding:13px 22px; color:#1a1304; background:var(--accent); }
+  button.ghost { font:inherit; cursor:pointer; border:1px solid var(--line); border-radius:10px; padding:13px 18px; color:var(--text); background:transparent; }
+  button.play:hover { filter:brightness(1.08); }
+  .log { margin-top:40px; border:1px solid var(--line); border-radius:12px; background:var(--panel); overflow:hidden; }
+  .log h3 { margin:0; padding:10px 16px; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); border-bottom:1px solid var(--line); }
+  #events { margin:0; padding:12px 16px; font:12.5px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace; max-height:240px; overflow:auto; }
+  #events .row { white-space:pre-wrap; }
+  #events .in  { color:#7ee0a6; }   /* game -> host */
+  #events .out { color:#7fa9ff; }   /* host -> game */
+  #events .sys { color:var(--muted); }
+
+  /* ---- Modal overlay ---- */
+  .overlay { position:fixed; inset:0; background:rgba(4,6,12,.72); backdrop-filter:blur(4px); display:none; align-items:center; justify-content:center; padding:24px; z-index:1000; }
+  .overlay.open { display:flex; }
+  .modal { position:relative; width:min(1040px, 96vw); height:min(760px, 92vh); background:#0c0f16; border:1px solid var(--line); border-radius:14px; box-shadow:0 30px 90px rgba(0,0,0,.6); overflow:hidden; display:flex; flex-direction:column; }
+  .modal .bar { display:flex; align-items:center; gap:10px; padding:8px 12px; border-bottom:1px solid var(--line); background:#10141e; }
+  .modal .bar .title { font-size:13px; color:var(--muted); }
+  .modal .bar .x { margin-left:auto; cursor:pointer; border:none; background:transparent; color:var(--muted); font-size:20px; line-height:1; padding:2px 8px; border-radius:6px; }
+  .modal .bar .x:hover { color:#fff; background:#222b40; }
+  .modal iframe { border:0; width:100%; flex:1; background:#0b0d12; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">EW</div>
+  <h1>Cracky Reads</h1>
+  <nav class="nav"><span>Home</span><span>Streams</span><span>Shop</span><span>About</span></nav>
+</header>
+
+<main>
+  <section class="hero">
+    <h2>Play Economy Warfare</h2>
+    <p>This page stands in for the owner's website. The game runs in a modal
+       <code>&lt;iframe&gt;</code> — fully isolated — and talks to the page over a tiny
+       <code>postMessage</code> bridge. Open it and watch the event log below.</p>
+    <div class="cta">
+      <button class="play" data-mode="home">▶ Launch Game</button>
+      <button class="ghost" data-mode="solo">Play Solo</button>
+      <button class="ghost" data-mode="deck">Deck Editor</button>
+    </div>
+  </section>
+
+  <section class="log">
+    <h3>postMessage bridge — live event log</h3>
+    <div id="events"></div>
+  </section>
+</main>
+
+<!-- Modal (built once, reused) -->
+<div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-label="Economy Warfare">
+  <div class="modal">
+    <div class="bar">
+      <span class="title">Economy Warfare</span>
+      <button class="x" id="hostClose" title="Close (host)">✕</button>
+    </div>
+    <!-- iframe src is set on open -->
+    <iframe id="game" title="Economy Warfare" allow="autoplay; fullscreen"></iframe>
+  </div>
+</div>
+
+<script>
+(function () {
+  // In dev, the game is served same-origin at "/". In production point this at
+  // wherever you host apps/web's dist/, e.g. "/play/".
+  var GAME_SRC = "/";
+  // Use "*" for the same-origin dev demo. In production set this to the game's
+  // exact origin (e.g. "https://your-site") for strict targeting.
+  var TARGET_ORIGIN = "*";
+  var GAME_SOURCE = "ew-game";
+  var HOST_SOURCE = "ew-host";
+
+  var overlay = document.getElementById("overlay");
+  var iframe = document.getElementById("game");
+  var eventsEl = document.getElementById("events");
+
+  function log(kind, msg) {
+    var row = document.createElement("div");
+    row.className = "row " + kind;
+    var tag = kind === "in" ? "◀ game→host" : kind === "out" ? "host→game ▶" : "•";
+    row.textContent = "[" + new Date().toLocaleTimeString() + "] " + tag + "  " + msg;
+    eventsEl.appendChild(row);
+    eventsEl.scrollTop = eventsEl.scrollHeight;
+  }
+
+  function sendToGame(message) {
+    if (!iframe.contentWindow) return;
+    iframe.contentWindow.postMessage(Object.assign({ source: HOST_SOURCE }, message), TARGET_ORIGIN);
+    log("out", JSON.stringify(message));
+  }
+
+  function openModal(mode) {
+    // mode/deck via query param (query wins) — could also be sent via init.
+    var src = GAME_SRC + (mode && mode !== "home" ? "?mode=" + encodeURIComponent(mode) : "");
+    iframe.src = src;
+    overlay.classList.add("open");
+    log("sys", "modal opened, iframe src = " + src);
+  }
+
+  function closeModal(reason) {
+    if (!overlay.classList.contains("open")) return;
+    sendToGame({ type: "close" });        // tell the game we're tearing down
+    overlay.classList.remove("open");
+    iframe.src = "about:blank";           // unload the game
+    log("sys", "modal closed (" + reason + ")");
+  }
+
+  // Launch buttons
+  Array.prototype.forEach.call(document.querySelectorAll("[data-mode]"), function (btn) {
+    btn.addEventListener("click", function () { openModal(btn.getAttribute("data-mode")); });
+  });
+  // Host close (the chrome ✕)
+  document.getElementById("hostClose").addEventListener("click", function () { closeModal("host ✕"); });
+  // Esc closes
+  window.addEventListener("keydown", function (e) { if (e.key === "Escape") closeModal("Esc"); });
+
+  // Receive messages from the game
+  window.addEventListener("message", function (ev) {
+    var data = ev.data;
+    if (!data || data.source !== GAME_SOURCE || typeof data.type !== "string") return; // ignore noise
+    log("in", JSON.stringify({ type: data.type, width: data.width, height: data.height }).replace(/,?"?(width|height)"?:undefined/g, ""));
+
+    switch (data.type) {
+      case "ready":
+        // Game mounted — push optional bootstrap config now.
+        sendToGame({ type: "init", config: { playerName: "Cracky", hostOrigin: location.origin } });
+        break;
+      case "resize":
+        // A real host could grow/shrink the modal to fit. We just log it.
+        break;
+      case "requestClose":
+        // Player hit the in-game ✕ — the host owns teardown.
+        closeModal("game requestClose");
+        break;
+    }
+  });
+
+  log("sys", "host ready — origin " + location.origin + ", target " + TARGET_ORIGIN);
+})();
+</script>
+</body>
+</html>

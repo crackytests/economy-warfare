@@ -1,0 +1,555 @@
+.ew-deck {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+/* ---- Header ---- */
+
+.ew-deck__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--line);
+}
+
+.ew-deck__title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.ew-deck__name-input {
+  flex: 1;
+  min-width: 160px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  background: var(--bg-2);
+  color: var(--ink-0);
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.ew-deck__name-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.ew-deck__header-actions {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.ew-deck__status {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.ew-deck__count--ok {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ok);
+}
+
+.ew-deck__count--bad {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--danger);
+}
+
+.ew-deck__errors {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.ew-deck__error {
+  font-size: 11px;
+  color: var(--danger);
+  padding: 2px 8px;
+  border-radius: var(--r-1);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.ew-deck__save-msg {
+  font-size: 12px;
+  color: var(--ok);
+  font-weight: 600;
+}
+
+/* ---- Picker ---- */
+
+.ew-deck__picker {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  background: var(--bg-1);
+}
+
+.ew-deck__picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+}
+
+.ew-deck__picker-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  background: var(--bg-2);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.ew-deck__picker-tile:hover {
+  border-color: var(--accent);
+  background: var(--bg-3);
+}
+
+.ew-deck__picker-faction {
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.ew-deck__picker-name {
+  font-size: 13px;
+  color: var(--ink-0);
+  font-weight: 600;
+}
+
+/* ---- Body layout ---- */
+
+.ew-deck__body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--sp-3);
+  min-height: 0;
+}
+
+/* ---- Pool browser ---- */
+
+.ew-deck__pool {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.ew-deck__filters {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.ew-deck__search {
+  flex: 1;
+  min-width: 140px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-1);
+  background: var(--bg-2);
+  color: var(--ink-0);
+  font-size: 13px;
+}
+
+.ew-deck__search:focus {
+  outline: none;
+  border-color: var(--accent-2);
+}
+
+.ew-deck__faction-filters {
+  display: flex;
+  gap: 2px;
+}
+
+.ew-deck__faction-btn {
+  padding: 4px 8px;
+  font-size: 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-1);
+  background: var(--bg-2);
+  color: var(--ink-1);
+  cursor: pointer;
+  transition: all 0.12s;
+  white-space: nowrap;
+}
+
+.ew-deck__faction-btn:hover {
+  background: var(--bg-3);
+}
+
+.ew-deck__faction-btn.is-active {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+.ew-deck__sort {
+  padding: 4px 8px;
+  font-size: 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-1);
+  background: var(--bg-2);
+  color: var(--ink-0);
+  cursor: pointer;
+}
+
+.ew-deck__pool-grid {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-content: flex-start;
+  overflow-y: auto;
+  max-height: calc(100vh - 320px);
+  padding-right: var(--sp-1);
+}
+
+/* ---- Pool card ---- */
+
+.ew-deck-pool-card {
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.12s;
+}
+
+.ew-deck-pool-card:hover {
+  transform: translateY(-2px);
+}
+
+.ew-deck-pool-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px;
+  gap: 4px;
+}
+
+.ew-deck-pool-card__add {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--r-1);
+  background: var(--bg-2);
+  color: var(--ink-0);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.ew-deck-pool-card__add:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ok) 20%, var(--bg-3));
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.ew-deck-pool-card__add:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.ew-deck-pool-card__count {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--ok);
+  min-width: 16px;
+  text-align: center;
+}
+
+/* ---- Deck list sidebar ---- */
+
+.ew-deck__list {
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  background: var(--bg-1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ew-deck__list-title {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3);
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ew-deck__list-count {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--accent);
+}
+
+.ew-deck__list-cards {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- List row ---- */
+
+.ew-deck-list-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 4px var(--sp-2);
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent);
+  font-size: 12px;
+  transition: background 0.1s;
+}
+
+.ew-deck-list-row:hover {
+  background: color-mix(in srgb, var(--bg-2) 80%, transparent);
+}
+
+.ew-deck-list-row__faction-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.ew-deck-list-row__cost {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--accent);
+  min-width: 16px;
+  text-align: center;
+}
+
+.ew-deck-list-row__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-0);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ew-deck-list-row__name:hover {
+  color: var(--accent);
+}
+
+.ew-deck-list-row__type {
+  font-size: 10px;
+  color: var(--ink-2);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.ew-deck-list-row__controls {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.ew-deck-list-row__controls button {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--r-1);
+  background: var(--bg-2);
+  color: var(--ink-1);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ew-deck-list-row__controls button:hover:not(:disabled) {
+  background: var(--bg-3);
+  color: var(--ink-0);
+}
+
+.ew-deck-list-row__controls button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.ew-deck-list-row__controls input {
+  width: 28px;
+  text-align: center;
+  border: 1px solid var(--line);
+  border-radius: var(--r-1);
+  background: var(--bg-1);
+  color: var(--ink-0);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px;
+}
+
+.ew-deck-list-row__controls input::-webkit-inner-spin-button,
+.ew-deck-list-row__controls input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.ew-deck-list-row__controls input {
+  -moz-appearance: textfield;
+}
+
+/* ---- Card Detail Overlay ---- */
+
+.ew-card-detail-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--bg-0) 80%, transparent);
+  backdrop-filter: blur(4px);
+}
+
+.ew-card-detail {
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  padding: var(--sp-4);
+  display: flex;
+  gap: var(--sp-4);
+  max-width: 680px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.ew-card-detail__info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 180px;
+}
+
+.ew-card-detail__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: 13px;
+  color: var(--ink-1);
+}
+
+.ew-card-detail__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.ew-card-detail__controls strong {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  min-width: 20px;
+  text-align: center;
+}
+
+.ew-card-detail__value {
+  font-family: var(--font-mono);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.ew-card-detail__row--keywords {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.ew-card-detail__keywords {
+  list-style: none;
+  margin: 0;
+  padding: var(--sp-2);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-radius: var(--r-1);
+  background: var(--bg-2);
+  color: var(--ink-1);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.ew-card-detail__keywords strong {
+  color: var(--accent);
+}
+
+.ew-card-detail__close {
+  align-self: flex-end;
+}
+
+/* ---- Responsive ---- */
+
+@media (max-width: 900px) {
+  .ew-deck__body {
+    grid-template-columns: 1fr;
+  }
+
+  .ew-deck__list {
+    max-height: 300px;
+  }
+}
+
+@media (max-width: 600px) {
+  .ew-deck__title-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ew-deck__header-actions {
+    justify-content: flex-end;
+  }
+
+  .ew-deck__pool-grid {
+    max-height: 50vh;
+  }
+
+  .ew-card-detail {
+    flex-direction: column;
+    max-width: 95vw;
+  }
+}
+
+/* ---- Small button variant ---- */
+
+.ew-btn--sm {
+  padding: 4px 10px;
+  font-size: 12px;
+}
