@@ -121,15 +121,15 @@
         { "id": "mirror-bioroid", "count": 4 },
         { "id": "signal-bride", "count": 3 },
         { "id": "market-eater", "count": 3 },
-        { "id": "forked-process", "count": 3 },
-        { "id": "husk-tide", "count": 3 },
+        { "id": "forked-process", "count": 2 },
+        { "id": "husk-tide", "count": 2 },
         { "id": "convergence-vat", "count": 1 },
         { "id": "iterate", "count": 3 },
         { "id": "scout-drone-x", "count": 4 },
         { "id": "assembly-matron", "count": 2 },
         { "id": "replicant-chorus", "count": 2 },
         { "id": "convergence-point", "count": 2 },
-        { "id": "network-bloom", "count": 2 }
+        { "id": "network-bloom", "count": 4 }
       ]
     },
     {
