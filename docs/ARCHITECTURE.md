@@ -102,6 +102,18 @@ Both are NOT wiped by the End-Phase `clearTempModifiers`, and are deleted at the
 controller's next Start phase (`enterPhase` "start"). The search AI's eval counts
 both so it values the buffs.
 
+### Expansion systems ("The Reboot" set)
+`EffectContext` gained `draw`, `discard`, `returnToHand` (bounce; resets the card,
+exiles tokens), `recallFromDiscard` (Convergence), `createToken`, and `beginChoice`,
+plus an optional **`onStartTurn`** hook fired in `enterPhase` "start". Tokens use
+`CardInstance.isToken` (exiled, never Reassemble) and `tokenUntilEndOfTurn` (cleared
+in `runEndPhase`); the **`Fork`** keyword spawns an on-enter token copy. Modal and
+opponent-dilemma cards use a `pendingChoice` (internal.ts) resolved by the
+**`resolveChoice`** intent: while one is pending, `getLegalIntents` offers only its
+chooser the option list and blocks all else; the reducer applies a data-encoded
+`ChoiceEffect[]`. "Who acts next" (sim `chooseActor`, search `nextActor`, web
+`humanMustRespond`) routes to the chooser, exactly like the block/reassemble handoffs.
+
 ## The bonding-curve seam (future-proofing — read this)
 
 - The rules engine **must never import `@ew/shared/ownership`**. A deck that is legal

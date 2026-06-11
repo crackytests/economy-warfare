@@ -53,7 +53,7 @@ function hasOngoing(p: PlayerState, cardId: string): boolean {
  *   until they have taken their first turn (extends first-turn protection from
  *   Raid to all direct damage).
  */
-export const COMBAT_CONFIG = { allowDirectAttacks: true, directAttackNeedsFirstTurn: true };
+export const COMBAT_CONFIG = { allowDirectAttacks: true, directAttackNeedsFirstTurn: true, damagePersists: true };
 
 /** Whether the defending player may be hit directly right now, per COMBAT_CONFIG. */
 function canHitPlayerDirectly(defender: PlayerState): boolean {
@@ -83,6 +83,14 @@ export function effectiveDef(state: GameState, card: CardInstance, cards: CardIn
     value += 1;
   }
   if (card.row === "back" && hasOngoing(controller, "network-bloom") && d.faction === "Linda Bioroids") {
+    value += 1;
+  }
+  // Treasury Yoko: while its controller has 8+ money, their characters get +1 DEF.
+  if (d.type === "Character" && controller.money >= 8 && allInPlay(controller).some((c) => c.cardId === "treasury-yoko")) {
+    value += 1;
+  }
+  // Replicant Chorus: other Linda Bioroids you control get +1 DEF.
+  if (d.faction === "Linda Bioroids" && allInPlay(controller).some((c) => c.cardId === "replicant-chorus" && c.instanceId !== card.instanceId)) {
     value += 1;
   }
   return value;
@@ -405,6 +413,15 @@ export function destroyCard(state: GameState, card: CardInstance, cards: CardInd
   removed.row = null;
   const d = def(cards, removed);
 
+  // Tokens (Fork/copy) are exiled, not discarded, and never Reassemble.
+  if (removed.isToken) {
+    pushEvent(state, "destroy", `${d?.name ?? removed.cardId} (copy) is destroyed.`, {
+      playerId: loc.controller.id,
+      data: { instanceId: removed.instanceId, cardId: removed.cardId },
+    });
+    return;
+  }
+
   const meta = priv(state);
   if (
     d?.type === "Character" &&
@@ -473,6 +490,7 @@ export function reassemblePreview(
 
 function canReassemble(state: GameState, card: CardInstance, cards: CardIndex, cost: number): boolean {
   const d = def(cards, card);
+  if (card.isToken) return false; // tokens are exiled, never Reassemble
   if (!d?.keywords.includes("Reassemble")) return false;
   if ((card.reassembledCount ?? 0) >= 1) return false;
   const nextDef = (d.def ?? 0) - ((card.defPenaltyFromReassemble ?? 0) + 1);

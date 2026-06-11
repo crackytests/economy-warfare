@@ -21,10 +21,10 @@ import type { DeckList } from "@ew/shared";
 import type { GameState, Intent, PlayerId } from "@ew/shared";
 
 const DECKS = [
-  { id: "yoko-imperium-starter", label: "Yoko" },
-  { id: "spooky-ones-starter", label: "Spooky" },
-  { id: "linda-bioroids-starter", label: "Linda" },
-  { id: "system-x-starter", label: "SystemX" },
+  { id: "yoko-continuity-starter", label: "YokoNew" },
+  { id: "systemx-mobilize-starter", label: "SysXNew" },
+  { id: "spooky-reboot-starter", label: "Reboot" },
+  { id: "linda-parallel-starter", label: "Parallel" },
 ] as const;
 
 const P1: PlayerId = "p1";
@@ -40,6 +40,9 @@ function chooseActor(state: GameState): PlayerId {
   const opp = state.turnOrder[0] === active ? state.turnOrder[1] : state.turnOrder[0];
   const ai = getLegalIntents(state, active, cards);
   const oi = getLegalIntents(state, opp, cards);
+  // A pending modal/dilemma routes to whichever side must choose.
+  if (has(ai, "resolveChoice")) return active;
+  if (has(oi, "resolveChoice")) return opp;
   if (has(ai, "reassembleChoice")) return active;
   if (has(oi, "reassembleChoice")) return opp;
   if (has(ai, "guardbreakChoice")) return active;
@@ -190,6 +193,7 @@ function lbl(state: GameState, i: Intent): string {
     case "skipBlock": return "take hit";
     case "guardbreakChoice": return `guardbreak ${cname(state, i.cannotBlockId)}`;
     case "reassembleChoice": return i.pay ? `reassemble ${cname(state, i.instanceId)}` : "decline reassemble";
+    case "resolveChoice": return `choose option ${i.optionIndex}`;
     case "advancePhase": return "-> next phase";
     case "endTurn": return "END TURN";
     case "concede": return "concede";
@@ -294,6 +298,7 @@ if (process.argv[2] === "matrix") {
   if (rule === "nodirect") COMBAT_CONFIG.allowDirectAttacks = false;
   if (rule === "income-anywhere") LOSS_CONFIG.incomeAnywhereSaves = true; // now default; explicit/no-op
   if (rule === "backrow-only") LOSS_CONFIG.incomeAnywhereSaves = false; // legacy loss rule for A/B
+  if (rule === "nostack") COMBAT_CONFIG.damagePersists = false; // damage heals each turn (non-persistent)
   interface Cell { aWin: number; bWin: number; stall: number; turnSum: number; decided: number }
   const matrix: Record<string, Record<string, Cell>> = {};
   const fac: Record<string, { decided: number; wins: number }> = {};

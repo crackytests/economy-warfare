@@ -30,6 +30,7 @@ export type Intent =
   | { kind: "declareBlock"; player: PlayerId; blockerId: string; attackerId: string }
   | { kind: "skipBlock"; player: PlayerId; attackerId: string }
   | { kind: "reassembleChoice"; player: PlayerId; instanceId: string; pay: boolean }
+  | { kind: "resolveChoice"; player: PlayerId; optionIndex: number } // modal / opponent dilemma
   | { kind: "advancePhase"; player: PlayerId }   // e.g. End Build, end Combat
   | { kind: "endTurn"; player: PlayerId }
   | { kind: "concede"; player: PlayerId };

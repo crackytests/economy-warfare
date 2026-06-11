@@ -30,6 +30,8 @@ function nextActor(state: GameState, cards: CardIndex): PlayerId {
   const ai = getLegalIntents(state, active, cards);
   const oi = getLegalIntents(state, opp, cards);
   const has = (arr: Intent[], k: Intent["kind"]) => arr.some((i) => i.kind === k);
+  if (has(ai, "resolveChoice")) return active;
+  if (has(oi, "resolveChoice")) return opp;
   if (has(ai, "reassembleChoice")) return active;
   if (has(oi, "reassembleChoice")) return opp;
   if (has(ai, "guardbreakChoice")) return active;
