@@ -28,6 +28,9 @@ import {
   pushEvent,
   removeFromZone,
   clearTempModifiers,
+  returnToHand as returnCardToHand,
+  recallFromDiscard,
+  zoneForRow,
 } from "./state";
 import {
   canAfford,
@@ -49,8 +52,9 @@ import {
   destroyDead,
   legalCombatIntents,
   losePlayerMoney,
+  COMBAT_CONFIG,
 } from "./combat";
-import { priv, resetTurnFlags } from "./internal";
+import { priv, resetTurnFlags, type ChoiceEffect } from "./internal";
 
 // ---- Phase order ----------------------------------------------------------
 
@@ -145,6 +149,23 @@ function playCardIntentsFor(state: GameState, player: PlayerState, card: CardIns
       return [...player.frontRow, ...player.backRow].filter((c) => def(cards, c)?.type === "Character").map(target);
     case "system-audit":
       return opponent.hand.filter((c) => def(cards, c)?.type !== "Location").map(target);
+    // ---- expansion ----
+    case "timeline-splitter":
+      return [...player.frontRow, ...player.backRow, ...opponent.frontRow, ...opponent.backRow]
+        .filter((c) => { const t = def(cards, c)?.type; return t === "Character" || t === "Vehicle"; })
+        .map(target);
+    case "forked-process":
+      return [...player.frontRow, ...player.backRow]
+        .filter((c) => def(cards, c)?.type === "Character")
+        .map(target);
+    case "fork-bomb":
+      return [...player.frontRow, ...player.backRow, ...opponent.frontRow, ...opponent.backRow]
+        .filter((c) => def(cards, c)?.type === "Character")
+        .map(target);
+    case "overclock-x":
+      return [...player.frontRow, ...player.backRow]
+        .filter((c) => def(cards, c)?.type === "Character")
+        .map(target);
     default:
       return [base];
   }
@@ -181,8 +202,14 @@ function enterPhase(state: GameState, phase: Phase, cards: CardIndex): void {
           }
         }
       }
-      // No card in the v1.1 pool has a start-of-turn trigger; if one is added,
-      // resolve it here via an EFFECTS start-of-turn hook.
+      // "Until your next turn" tokens (Forked Process) vanish now.
+      p.frontRow = p.frontRow.filter((c) => !c.tokenUntilNextTurn);
+      p.backRow = p.backRow.filter((c) => !c.tokenUntilNextTurn);
+      // Start-of-turn triggers for the active player's in-play cards.
+      for (const c of [...p.frontRow, ...p.backRow, ...p.ongoing]) {
+        const eff = EFFECTS[c.cardId];
+        if (eff?.onStartTurn) eff.onStartTurn(makeEffectContext(state, c, cards, []));
+      }
       pushEvent(state, "phase", `${p.name}: Start phase.`, { playerId: p.id });
       break;
     }
@@ -216,11 +243,33 @@ function enterPhase(state: GameState, phase: Phase, cards: CardIndex): void {
 /** End phase: clear temp modifiers, check loss, mark first turn, pass turn. */
 function runEndPhase(state: GameState, cards: CardIndex): void {
   clearCombat(state);
+  // Remove "until end of turn" tokens (Forked Process / Fork Bomb).
+  for (const pid of state.turnOrder) {
+    const pp = state.players[pid]!;
+    pp.frontRow = pp.frontRow.filter((c) => !c.tokenUntilEndOfTurn);
+    pp.backRow = pp.backRow.filter((c) => !c.tokenUntilEndOfTurn);
+  }
   // Clear temporary (end-of-turn) modifiers on ALL in-play cards.
   for (const pid of state.turnOrder) {
     const pp = state.players[pid]!;
     for (const zone of [pp.frontRow, pp.backRow, pp.ongoing]) {
       for (const c of zone) clearTempModifiers(c);
+    }
+  }
+  // EXPERIMENT: non-persistent damage. When COMBAT_CONFIG.damagePersists is false,
+  // combat damage heals at end of turn — creatures only die from lethal damage
+  // taken within a single combat, never from chip damage accumulating across turns.
+  // Heals to the card's max (printed DEF minus any permanent Reassemble penalty).
+  if (!COMBAT_CONFIG.damagePersists) {
+    for (const pid of state.turnOrder) {
+      const pp = state.players[pid]!;
+      for (const zone of [pp.frontRow, pp.backRow]) {
+        for (const c of zone) {
+          const d = def(cards, c);
+          if (d?.def == null || c.currentDef == null) continue;
+          c.currentDef = d.def - (c.defPenaltyFromReassemble ?? 0);
+        }
+      }
     }
   }
   // No card in the v1.1 pool has an end-of-turn trigger beyond clearing temp
@@ -308,11 +357,18 @@ export function applyIntent(state: GameState, intent: Intent, cards: CardIndex):
 type RouteResult = { error: { code: string; message: string } } | null;
 
 function route(state: GameState, intent: Intent, cards: CardIndex): RouteResult {
+  // A pending modal/dilemma blocks all other actions until its chooser resolves it.
+  const pending = priv(state).pendingChoice;
+  if (pending && intent.kind !== "resolveChoice" && intent.kind !== "concede") {
+    return { error: { code: "CHOICE_PENDING", message: "Resolve the pending choice first." } };
+  }
+
   // Turn/ownership gating: only the active player may act (concede excepted).
   const defenderCombatIntent =
     intent.kind === "declareBlock" ||
     intent.kind === "skipBlock" ||
-    intent.kind === "reassembleChoice";
+    intent.kind === "reassembleChoice" ||
+    intent.kind === "resolveChoice"; // the chooser may be the non-active player
   if (intent.kind !== "concede" && !defenderCombatIntent && intent.player !== state.activePlayerId) {
     return { error: { code: "NOT_ACTIVE", message: "It is not your turn." } };
   }
@@ -348,6 +404,8 @@ function route(state: GameState, intent: Intent, cards: CardIndex): RouteResult 
       return doOptimize(state, intent, cards);
     case "activateAbility":
       return doActivateAbility(state, intent, cards);
+    case "resolveChoice":
+      return doResolveChoice(state, intent, cards);
 
     default: {
       const _exhaustive: never = intent;
@@ -447,6 +505,12 @@ function doPlayCard(state: GameState, intent: Extract<Intent, { kind: "playCard"
       if (d.keywords.includes("Deploy") && intent.targets?.[0]?.kind === "card") {
         // Target self with a card ref to opt into the immediate Deploy move.
         doDeployMove(state, card, p, cards);
+      }
+      // Fork: enter alongside a token copy in the same row (exiled on leave).
+      // The token does not itself fire ETB/Fork (no recursion).
+      if (d.keywords.includes("Fork")) {
+        const forkRow: "front" | "back" = (card.row as string) === "back" ? "back" : "front";
+        createTokenInstance(state, cards, d.id, p.id, forkRow);
       }
       break;
     }
@@ -558,7 +622,132 @@ function makeEffectContext(
       const taxes = (priv(state).systemAuditTaxes ??= {});
       taxes[instanceId] = { expiresFor };
     },
+    draw: (playerId, n) => drawCards(state.players[playerId]!, n),
+    returnToHand: (target) => {
+      returnCardToHand(state, target);
+      const meta = priv(state);
+      (meta.cardReturnedThisTurn ??= {})[target.ownerId] = true;
+    },
+    recallFromDiscard: (target) => recallFromDiscard(state, target),
+    discard: (playerId, n) => {
+      const pp = state.players[playerId];
+      if (!pp) return;
+      for (let i = 0; i < n; i++) {
+        const worst = lowestValueCard(pp.hand, cards);
+        if (!worst) break;
+        removeFromZone(pp.hand, worst.instanceId);
+        discardCard(state, worst);
+      }
+    },
+    createToken: (cardId, controllerId, row, duration) =>
+      createTokenInstance(state, cards, cardId, controllerId, row, duration),
+    beginChoice: (chooserId, prompt, options) => {
+      priv(state).pendingChoice = { chooserId, sourceCardId: card.cardId, prompt, options };
+    },
   };
+}
+
+function doResolveChoice(
+  state: GameState,
+  intent: Extract<Intent, { kind: "resolveChoice" }>,
+  cards: CardIndex,
+): RouteResult {
+  const meta = priv(state);
+  const pending = meta.pendingChoice;
+  if (!pending) return { error: { code: "NO_CHOICE", message: "There is no pending choice." } };
+  if (intent.player !== pending.chooserId) {
+    return { error: { code: "NOT_CHOOSER", message: "It is not your choice to make." } };
+  }
+  const option = pending.options[intent.optionIndex];
+  if (!option) return { error: { code: "BAD_OPTION", message: "Invalid choice option." } };
+  // Clear BEFORE applying so effects can't see a stale pending choice.
+  delete meta.pendingChoice;
+  for (const eff of option.effects) applyChoiceEffect(state, eff, cards);
+  pushEvent(state, "choice", `${state.players[pending.chooserId]!.name} chooses: ${option.label}.`, {
+    playerId: pending.chooserId,
+  });
+  return null;
+}
+
+/** Apply one data-encoded choice effect (interpreter for resolveChoice). */
+function applyChoiceEffect(state: GameState, eff: ChoiceEffect, cards: CardIndex): void {
+  const p = state.players[eff.playerId];
+  if (!p) return;
+  switch (eff.kind) {
+    case "gainMoney":
+      gainMoney(p, eff.amount);
+      break;
+    case "loseMoney":
+      losePlayerMoney(state, eff.playerId, eff.amount, cards, { reason: "choice" });
+      break;
+    case "draw":
+      drawCards(p, eff.n);
+      break;
+    case "discardLowest": {
+      for (let i = 0; i < eff.n; i++) {
+        const worst = lowestValueCard(p.hand, cards);
+        if (!worst) break;
+        removeFromZone(p.hand, worst.instanceId);
+        discardCard(state, worst);
+      }
+      break;
+    }
+    case "sacrificeIncome": {
+      const src = p.backRow
+        .filter((c) => (def(cards, c)?.income ?? 0) > 0)
+        .sort((a, b) => cardValue(a, cards) - cardValue(b, cards))[0];
+      if (src) destroyCard(state, src, cards);
+      break;
+    }
+    case "recallBest": {
+      const best = [...p.discard].sort((a, b) => cardValue(b, cards) - cardValue(a, cards))[0];
+      if (best) recallFromDiscard(state, best);
+      break;
+    }
+  }
+}
+
+/** Rough card value for auto-selecting sacrifice/discard targets. */
+function cardValue(c: CardInstance, cards: CardIndex): number {
+  const d = def(cards, c);
+  if (!d) return 0;
+  return d.cost + (d.atk ?? 0) + (d.def ?? 0) + (d.income ?? 0) * 2;
+}
+function lowestValueCard(hand: CardInstance[], cards: CardIndex): CardInstance | undefined {
+  return [...hand].sort((a, b) => cardValue(a, cards) - cardValue(b, cards))[0];
+}
+
+/** Instantiate a token character copy. Deterministic id via priv().tokenSeq. */
+function createTokenInstance(
+  state: GameState,
+  cards: CardIndex,
+  cardId: string,
+  controllerId: PlayerId,
+  row: "front" | "back",
+  duration?: "endOfTurn" | "nextTurn",
+): CardInstance | null {
+  const d = cards.byId.get(cardId);
+  if (!d) return null;
+  const meta = priv(state);
+  meta.tokenSeq = (meta.tokenSeq ?? 0) + 1;
+  const token: CardInstance = {
+    instanceId: `token:${cardId}:${meta.tokenSeq}`,
+    cardId,
+    ownerId: controllerId,
+    controllerId,
+    row,
+    exhausted: false,
+    currentDef: d.def ?? null,
+    isToken: true,
+    ...(duration === "endOfTurn" ? { tokenUntilEndOfTurn: true } : {}),
+    ...(duration === "nextTurn" ? { tokenUntilNextTurn: true } : {}),
+  };
+  zoneForRow(state.players[controllerId]!, row).push(token);
+  pushEvent(state, "token", `${state.players[controllerId]!.name} creates a copy of ${d.name}.`, {
+    playerId: controllerId,
+    data: { instanceId: token.instanceId, cardId },
+  });
+  return token;
 }
 
 function doDeployMove(state: GameState, card: CardInstance, p: PlayerState, cards: CardIndex): void {
@@ -686,8 +875,9 @@ function doActivateAbility(state: GameState, intent: Extract<Intent, { kind: "ac
       return { error: { code: "ABILITY_USED", message: "Data Yoko is exhausted." } };
     }
     const target = firstCardTarget(state, intent.targets ?? []);
-    if (!target || target.controllerId !== p.id || def(cards, target)?.type !== "Character") {
-      return { error: { code: "BAD_TARGET", message: "Choose a character you control." } };
+    const tt = target ? def(cards, target)?.type : undefined;
+    if (!target || target.controllerId !== p.id || (tt !== "Character" && tt !== "Vehicle")) {
+      return { error: { code: "BAD_TARGET", message: "Choose a character or vehicle you control." } };
     }
     source.exhausted = true;
     target.defBonusUntilNextTurn = (target.defBonusUntilNextTurn ?? 0) + 1;
@@ -705,8 +895,9 @@ function doActivateAbility(state: GameState, intent: Extract<Intent, { kind: "ac
       return { error: { code: "ABILITY_USED", message: "Assembly Worker X is exhausted." } };
     }
     const target = firstCardTarget(state, intent.targets ?? []);
-    if (!target || target.controllerId !== p.id || def(cards, target)?.type !== "Character") {
-      return { error: { code: "BAD_TARGET", message: "Choose a character you control." } };
+    const tt = target ? def(cards, target)?.type : undefined;
+    if (!target || target.controllerId !== p.id || (tt !== "Character" && tt !== "Vehicle")) {
+      return { error: { code: "BAD_TARGET", message: "Choose a character or vehicle you control." } };
     }
     source.exhausted = true;
     target.atkBonusUntilNextTurn = (target.atkBonusUntilNextTurn ?? 0) + 1;
@@ -825,6 +1016,18 @@ export function getLegalIntents(state: GameState, player: PlayerId, cards: CardI
   const out: Intent[] = [];
   if (state.winnerId) return out;
 
+  // A pending modal/dilemma overrides everything: only its chooser may act, and
+  // only by picking an option.
+  const pending = priv(state).pendingChoice;
+  if (pending) {
+    if (player === pending.chooserId) {
+      for (let i = 0; i < pending.options.length; i++) {
+        out.push({ kind: "resolveChoice", player, optionIndex: i });
+      }
+    }
+    return out;
+  }
+
   // Concede is always available to either player.
   out.push({ kind: "concede", player });
 
@@ -898,7 +1101,8 @@ export function getLegalIntents(state: GameState, player: PlayerId, cards: CardI
       for (const { id, ability } of buffSources) {
         for (const source of [...p.frontRow, ...p.backRow].filter((c) => c.cardId === id && !c.exhausted)) {
           for (const c of [...p.frontRow, ...p.backRow]) {
-            if (def(cards, c)?.type === "Character") {
+            const t = def(cards, c)?.type;
+            if (t === "Character" || t === "Vehicle") {
               out.push({
                 kind: "activateAbility",
                 player,

@@ -86,6 +86,95 @@
         { "id": "signal-bride", "count": 3 },
         { "id": "phase-wraith", "count": 2 }
       ]
+    },
+    {
+      "id": "spooky-reboot-starter",
+      "name": "Spooky Reboot",
+      "faction": "Spooky Ones",
+      "cards": [
+        { "id": "flicker-wisp", "count": 3 },
+        { "id": "doubt-specter", "count": 2 },
+        { "id": "desync-skirmisher", "count": 3 },
+        { "id": "phase-wraith", "count": 3 },
+        { "id": "echo-raider", "count": 3 },
+        { "id": "fork-phantom", "count": 3 },
+        { "id": "timeline-splitter", "count": 2 },
+        { "id": "glitch-adept", "count": 2 },
+        { "id": "paradox-engine", "count": 2 },
+        { "id": "severance-hex", "count": 2 },
+        { "id": "system-shutdown", "count": 2 },
+        { "id": "forced-liquidation", "count": 2 },
+        { "id": "glitchstorm", "count": 1 },
+        { "id": "data-yoko", "count": 4 },
+        { "id": "scout-drone-x", "count": 2 },
+        { "id": "asset-freeze", "count": 2 },
+        { "id": "market-eater", "count": 2 }
+      ]
+    },
+    {
+      "id": "linda-parallel-starter",
+      "name": "Linda Parallel",
+      "faction": "Linda Bioroids",
+      "cards": [
+        { "id": "spare-husk", "count": 4 },
+        { "id": "linda-husk", "count": 4 },
+        { "id": "mirror-bioroid", "count": 4 },
+        { "id": "signal-bride", "count": 3 },
+        { "id": "market-eater", "count": 3 },
+        { "id": "forked-process", "count": 3 },
+        { "id": "husk-tide", "count": 3 },
+        { "id": "convergence-vat", "count": 1 },
+        { "id": "iterate", "count": 3 },
+        { "id": "scout-drone-x", "count": 4 },
+        { "id": "assembly-matron", "count": 2 },
+        { "id": "replicant-chorus", "count": 2 },
+        { "id": "convergence-point", "count": 2 },
+        { "id": "network-bloom", "count": 2 }
+      ]
+    },
+    {
+      "id": "yoko-continuity-starter",
+      "name": "Yoko Continuity",
+      "faction": "Yoko Imperium",
+      "cards": [
+        { "id": "intern-yoko", "count": 4 },
+        { "id": "data-yoko", "count": 4 },
+        { "id": "analyst-yoko", "count": 4 },
+        { "id": "censor-node", "count": 3 },
+        { "id": "firewall-yoko", "count": 2 },
+        { "id": "treasury-yoko", "count": 2 },
+        { "id": "audit-directive", "count": 4 },
+        { "id": "continuity-yoko", "count": 2 },
+        { "id": "compliance-order", "count": 2 },
+        { "id": "imperial-mandate", "count": 2 },
+        { "id": "rollback-protocol", "count": 1 },
+        { "id": "predictive-shielding", "count": 4 },
+        { "id": "scout-drone-x", "count": 4 },
+        { "id": "salvage-rig-x", "count": 1 },
+        { "id": "governor", "count": 1 }
+      ]
+    },
+    {
+      "id": "systemx-mobilize-starter",
+      "name": "System X Mobilize",
+      "faction": "System X",
+      "cards": [
+        { "id": "scout-drone-x", "count": 4 },
+        { "id": "assembly-worker-x", "count": 4 },
+        { "id": "production-overseer-x", "count": 3 },
+        { "id": "salvage-rig-x", "count": 4 },
+        { "id": "recon-mech-x", "count": 3 },
+        { "id": "armor-platoon-x", "count": 3 },
+        { "id": "heavy-hauler-x", "count": 2 },
+        { "id": "demolisher-x", "count": 2 },
+        { "id": "director-x", "count": 2 },
+        { "id": "forward-operating-base-x", "count": 2 },
+        { "id": "overclock-x", "count": 2 },
+        { "id": "supply-run-x", "count": 1 },
+        { "id": "command-uplink-x", "count": 2 },
+        { "id": "spare-cog", "count": 2 },
+        { "id": "data-yoko", "count": 4 }
+      ]
     }
   ]
 }

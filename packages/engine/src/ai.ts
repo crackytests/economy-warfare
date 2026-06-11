@@ -7,7 +7,7 @@ import type {
   TargetRef,
 } from "@ew/shared";
 import type { CardIndex } from "./index";
-import { getLegalIntents } from "./reducer";
+import { getLegalIntents, applyIntent } from "./reducer";
 import { locate, opponentOf } from "./state";
 import { peekPriv } from "./internal";
 import { totalIncome, incomeSources } from "./economy";
@@ -590,6 +590,22 @@ function pickRally(
   return best?.intent ?? null;
 }
 
+/** Lightweight position score for `me` (money + income + board, minus opponent). */
+function quickScore(state: GameState, me: PlayerId, cards: CardIndex): number {
+  if (state.winnerId === me) return 1e6;
+  if (state.winnerId) return -1e6;
+  const opp = opponentOf(state, me);
+  const sideScore = (pid: PlayerId): number => {
+    const p = state.players[pid]!;
+    let v = p.money + incomeSources(state, pid, cards).length * 5 + p.hand.length * 0.5;
+    for (const c of [...p.frontRow, ...p.backRow]) {
+      v += effectiveAtk(state, c, cards) + effectiveDef(state, c, cards);
+    }
+    return v;
+  };
+  return sideScore(me) - sideScore(opp);
+}
+
 /** Does the AI have at least one ready front-row attacker with a legal target? */
 function hasAttack(state: GameState, aiPlayerId: PlayerId, cards: CardIndex): boolean {
   const p = state.players[aiPlayerId]!;
@@ -641,6 +657,16 @@ export function pickAIIntent(
   // also poisons search rollouts, so drop it before any decision logic.
   const intents = getLegalIntents(state, aiPlayerId, cards).filter((i) => i.kind !== "concede");
   if (intents.length === 0) return null;
+
+  // Pending modal/dilemma: pick the option best for us (1-ply greedy). Works for
+  // both "choose one" (caster) and "least-bad" (opponent dilemma).
+  const choiceIntents = intents.filter((i) => i.kind === "resolveChoice");
+  if (choiceIntents.length > 0) {
+    return maxBy(choiceIntents, (ci) => {
+      const r = applyIntent(state, ci, cards);
+      return r.error ? -Infinity : quickScore(r.state, aiPlayerId, cards);
+    }) ?? choiceIntents[0]!;
+  }
 
   const phaseIntents = intents.filter(
     (i) => i.kind === "advancePhase" || i.kind === "endTurn",

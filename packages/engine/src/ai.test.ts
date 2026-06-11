@@ -10,6 +10,9 @@ import {
 import { loadCardIndex, starterDeck } from "./cards";
 import { settleToInteractive } from "./reducer";
 import { effectiveCost } from "./economy";
+import { returnToHand, recallFromDiscard } from "./state";
+import { destroyCard } from "./combat";
+import { priv } from "./internal";
 import type { CardInstance, GameState, PlayerId } from "@ew/shared";
 
 let cards: CardIndex;
@@ -398,5 +401,234 @@ describe("Emergency Shielding: +2 DEF until your next turn", () => {
     // ...and expires when P1's next turn begins.
     s = applyIntent(s, { kind: "endTurn", player: P2 }, cards).state;
     expect(s.players[P1]!.frontRow.find((c) => c.instanceId === guard.instanceId)!.defBonusUntilNextTurn).toBeUndefined();
+  });
+});
+
+describe("Expansion engine: bounce / recall / tokens", () => {
+  function freshBoardP1(): GameState {
+    let s = forceSettle(newGame());
+    s = applyIntent(s, { kind: "endTurn", player: P2 }, cards).state; // -> P1 Build
+    s.players[P1]!.frontRow = [];
+    s.players[P1]!.backRow = [];
+    s.players[P1]!.hand = [];
+    s.players[P1]!.discard = [];
+    return s;
+  }
+
+  it("returnToHand bounces an in-play card to hand, reset to pristine", () => {
+    const s = freshBoardP1();
+    const c = makeInstance(P1, "armor-platoon-x", "front");
+    c.currentDef = 1; // damaged
+    c.exhausted = true;
+    s.players[P1]!.frontRow = [c];
+    returnToHand(s, c);
+    expect(s.players[P1]!.frontRow).toHaveLength(0);
+    const inHand = s.players[P1]!.hand.find((x) => x.instanceId === c.instanceId)!;
+    expect(inHand).toBeTruthy();
+    expect(inHand.currentDef).toBeNull();
+    expect(inHand.exhausted).toBe(false);
+  });
+
+  it("returnToHand exiles a token instead of returning it", () => {
+    const s = freshBoardP1();
+    const tok = makeInstance(P1, "armor-platoon-x", "front");
+    tok.isToken = true;
+    s.players[P1]!.frontRow = [tok];
+    returnToHand(s, tok);
+    expect(s.players[P1]!.frontRow).toHaveLength(0);
+    expect(s.players[P1]!.hand).toHaveLength(0); // exiled, not returned
+  });
+
+  it("destroyCard exiles a token (not to discard) and it cannot Reassemble", () => {
+    const s = freshBoardP1();
+    const tok = makeInstance(P1, "linda-husk", "front"); // Reassemble card...
+    tok.isToken = true; // ...but as a token it must exile
+    s.players[P1]!.frontRow = [tok];
+    destroyCard(s, tok, cards);
+    expect(s.players[P1]!.frontRow).toHaveLength(0);
+    expect(s.players[P1]!.discard).toHaveLength(0); // exiled
+  });
+
+  it("recallFromDiscard returns a discarded card to hand", () => {
+    const s = freshBoardP1();
+    const c = makeInstance(P1, "linda-husk");
+    s.players[P1]!.discard = [c];
+    expect(recallFromDiscard(s, c)).toBe(true);
+    expect(s.players[P1]!.discard).toHaveLength(0);
+    expect(s.players[P1]!.hand.find((x) => x.instanceId === c.instanceId)).toBeTruthy();
+  });
+});
+
+describe("Expansion engine: resolveChoice (modal / dilemma)", () => {
+  function buildP1(): GameState {
+    let s = forceSettle(newGame());
+    s = applyIntent(s, { kind: "endTurn", player: P2 }, cards).state; // P1 active, Build
+    return s;
+  }
+
+  it("gates all actions to the chooser and applies the chosen option's effects", () => {
+    const s = buildP1();
+    s.players[P1]!.money = 5;
+    // Seed a pending opponent-dilemma where P1 (active) must choose.
+    priv(s).pendingChoice = {
+      chooserId: P1,
+      sourceCardId: "test",
+      prompt: "Choose your poison",
+      options: [
+        { label: "Lose 3", effects: [{ kind: "loseMoney", playerId: P1, amount: 3 }] },
+        { label: "Gain 1", effects: [{ kind: "gainMoney", playerId: P1, amount: 1 }] },
+      ],
+    };
+    // Only the chooser gets actions, and only resolveChoice options.
+    const p1Legal = getLegalIntents(s, P1, cards);
+    expect(p1Legal.every((i) => i.kind === "resolveChoice")).toBe(true);
+    expect(p1Legal).toHaveLength(2);
+    expect(getLegalIntents(s, P2, cards)).toHaveLength(0);
+    // A non-choice action is rejected while a choice is pending.
+    const blocked = applyIntent(s, { kind: "advancePhase", player: P1 }, cards);
+    expect(blocked.error?.code).toBe("CHOICE_PENDING");
+    // Resolving option 0 applies its effect and clears the pending choice.
+    const after = applyIntent(s, { kind: "resolveChoice", player: P1, optionIndex: 0 }, cards).state;
+    expect(after.players[P1]!.money).toBe(2); // 5 - 3
+    expect(getLegalIntents(after, P1, cards).some((i) => i.kind === "resolveChoice")).toBe(false);
+  });
+
+  it("the AI picks the least-bad option for itself", () => {
+    const s = buildP1();
+    s.players[P2]!.money = 5;
+    priv(s).pendingChoice = {
+      chooserId: P2,
+      sourceCardId: "test",
+      prompt: "Opponent dilemma",
+      options: [
+        { label: "Lose 4", effects: [{ kind: "loseMoney", playerId: P2, amount: 4 }] },
+        { label: "Lose 1", effects: [{ kind: "loseMoney", playerId: P2, amount: 1 }] },
+      ],
+    };
+    const choice = pickAIIntent(s, P2, cards);
+    expect(choice).toMatchObject({ kind: "resolveChoice", optionIndex: 1 }); // the smaller loss
+  });
+});
+
+describe("Expansion cards: effects", () => {
+  function buildP1(): GameState {
+    let s = forceSettle(newGame());
+    s = applyIntent(s, { kind: "endTurn", player: P2 }, cards).state; // P1 active, Build
+    s.players[P1]!.frontRow = []; s.players[P1]!.backRow = [];
+    s.players[P1]!.hand = []; s.players[P1]!.money = 8;
+    s.players[P1]!.hasTakenFirstTurn = true;
+    return s;
+  }
+  const play = (s: GameState, card: CardInstance, targets?: { kind: "card"; instanceId: string }[]) => {
+    s.players[P1]!.hand.push(card);
+    return applyIntent(s, { kind: "playCard", player: P1, instanceId: card.instanceId, targets }, cards).state;
+  };
+
+  it("Scout Drone X draws on enter", () => {
+    const s = buildP1();
+    const deckBefore = s.players[P1]!.deck.length;
+    const after = play(s, makeInstance(P1, "scout-drone-x"));
+    expect(after.players[P1]!.deck.length).toBe(deckBefore - 1);
+    expect(after.players[P1]!.frontRow.some((c) => c.cardId === "scout-drone-x")).toBe(true);
+  });
+
+  it("Husk Tide creates three Husk tokens", () => {
+    const s = buildP1();
+    const after = play(s, makeInstance(P1, "husk-tide"));
+    const toks = after.players[P1]!.frontRow.filter((c) => c.cardId === "spare-husk" && c.isToken);
+    expect(toks).toHaveLength(3);
+  });
+
+  it("Fork Phantom enters with a token copy", () => {
+    const s = buildP1();
+    const after = play(s, makeInstance(P1, "fork-phantom"));
+    const phantoms = after.players[P1]!.frontRow.filter((c) => c.cardId === "fork-phantom");
+    expect(phantoms).toHaveLength(2); // the real one + a token
+    expect(phantoms.some((c) => c.isToken)).toBe(true);
+  });
+
+  it("Timeline Splitter returns a target to hand", () => {
+    const s = buildP1();
+    const enemy = makeInstance(P2, "armor-platoon-x", "front");
+    s.players[P2]!.frontRow = [enemy];
+    const after = play(s, makeInstance(P1, "timeline-splitter"), [{ kind: "card", instanceId: enemy.instanceId }]);
+    expect(after.players[P2]!.frontRow.some((c) => c.instanceId === enemy.instanceId)).toBe(false);
+    expect(after.players[P2]!.hand.some((c) => c.instanceId === enemy.instanceId)).toBe(true);
+  });
+
+  it("Audit Directive drains equal to back-row income sources", () => {
+    const s = buildP1();
+    s.players[P1]!.backRow = [makeInstance(P1, "data-yoko", "back"), makeInstance(P1, "analyst-yoko", "back")];
+    s.players[P2]!.money = 9;
+    const after = play(s, makeInstance(P1, "audit-directive"));
+    expect(after.players[P2]!.money).toBe(7); // 2 income sources -> -2
+  });
+
+  it("Imperial Mandate is a caster modal: resolving 'gain 5' adds money", () => {
+    let s = buildP1();
+    s.players[P1]!.money = 5;
+    s = play(s, makeInstance(P1, "imperial-mandate")); // cost 3 -> $2, then choice pending
+    expect(getLegalIntents(s, P1, cards).filter((i) => i.kind === "resolveChoice")).toHaveLength(3);
+    s = applyIntent(s, { kind: "resolveChoice", player: P1, optionIndex: 0 }, cards).state;
+    expect(s.players[P1]!.money).toBe(7); // 5 - 3 cost + 5 gain
+  });
+
+  it("Compliance Order hands the dilemma to the opponent", () => {
+    const s = buildP1();
+    const after = play(s, makeInstance(P1, "compliance-order"));
+    // P2 (opponent) is now the chooser.
+    expect(getLegalIntents(after, P2, cards).every((i) => i.kind === "resolveChoice")).toBe(true);
+    expect(getLegalIntents(after, P1, cards)).toHaveLength(0);
+  });
+});
+
+describe("Compliance Order: no free money-dodge when broke", () => {
+  function buildP1(): GameState {
+    let s = forceSettle(newGame());
+    s = applyIntent(s, { kind: "endTurn", player: P2 }, cards).state;
+    s.players[P1]!.hand = []; s.players[P1]!.money = 8; s.players[P1]!.hasTakenFirstTurn = true;
+    return s;
+  }
+  it("a broke opponent with an income card is forced to sacrifice (lose-money option withheld)", () => {
+    const s = buildP1();
+    s.players[P2]!.money = 0; // broke -> 'lose 3' would be a free dodge
+    s.players[P2]!.backRow = [makeInstance(P2, "data-yoko", "back")]; // has an income card
+    s.players[P1]!.hand.push(makeInstance(P1, "compliance-order"));
+    const after = applyIntent(s, { kind: "playCard", player: P1, instanceId: s.players[P1]!.hand.at(-1)!.instanceId }, cards).state;
+    const opts = getLegalIntents(after, P2, cards).filter((i) => i.kind === "resolveChoice");
+    expect(opts).toHaveLength(1); // only "sacrifice income" — the money dodge is gone
+    const resolved = applyIntent(after, { kind: "resolveChoice", player: P2, optionIndex: 0 }, cards).state;
+    expect(resolved.players[P2]!.backRow.some((c) => c.cardId === "data-yoko")).toBe(false); // sacrificed
+  });
+});
+
+describe("Fortify / Rally can target Vehicles", () => {
+  function buildP1(): GameState {
+    let s = forceSettle(newGame());
+    s = applyIntent(s, { kind: "endTurn", player: P2 }, cards).state; // P1 active, Build
+    s.players[P1]!.hand = []; s.players[P1]!.hasTakenFirstTurn = true;
+    return s;
+  }
+  it("Data Yoko fortifies a vehicle (+1 DEF)", () => {
+    const s = buildP1();
+    const dy = makeInstance(P1, "data-yoko", "back");
+    const veh = makeInstance(P1, "demolisher-x", "front"); // a Vehicle
+    s.players[P1]!.backRow = [dy];
+    s.players[P1]!.frontRow = [veh];
+    const offered = getLegalIntents(s, P1, cards).some(
+      (i) => i.kind === "activateAbility" && i.abilityId === "fortify" && i.targets?.[0]?.kind === "card" && i.targets[0].instanceId === veh.instanceId,
+    );
+    expect(offered).toBe(true);
+    const after = applyIntent(s, { kind: "activateAbility", player: P1, instanceId: dy.instanceId, abilityId: "fortify", targets: [{ kind: "card", instanceId: veh.instanceId }] }, cards).state;
+    expect(after.players[P1]!.frontRow.find((c) => c.instanceId === veh.instanceId)!.defBonusUntilNextTurn).toBe(1);
+  });
+  it("Assembly Worker X rallies a vehicle (+1 ATK)", () => {
+    const s = buildP1();
+    const aw = makeInstance(P1, "assembly-worker-x", "back");
+    const veh = makeInstance(P1, "demolisher-x", "front");
+    s.players[P1]!.backRow = [aw];
+    s.players[P1]!.frontRow = [veh];
+    const after = applyIntent(s, { kind: "activateAbility", player: P1, instanceId: aw.instanceId, abilityId: "rally", targets: [{ kind: "card", instanceId: veh.instanceId }] }, cards).state;
+    expect(after.players[P1]!.frontRow.find((c) => c.instanceId === veh.instanceId)!.atkBonusUntilNextTurn).toBe(1);
   });
 });

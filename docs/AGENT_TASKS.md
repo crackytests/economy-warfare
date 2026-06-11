@@ -270,6 +270,23 @@ Owner files: `packages/engine/src/ai.ts` (engine-hosted so server can use it too
 - Activated-ability dispatch in `doActivateAbility` is keyed by `(cardId, abilityId)`:
   `destroy-for-2` (Black Market Exchange), `fortify` (Data Yoko), `rally` (Assembly Worker X).
 - AIs (`pickAIIntent`, `pickSearchIntent`) never voluntarily `concede`.
+
+## "The Reboot" 42-card expansion (2026-06) — engine additions
+- **`@ew/shared`:** `Keyword += "Fork"`; `CardInstance.isToken?` / `tokenUntilEndOfTurn?`;
+  `Intent += { kind: "resolveChoice"; optionIndex }`.
+- **`EffectContext` new helpers:** `draw`, `discard`, `returnToHand`, `recallFromDiscard`,
+  `createToken`, `beginChoice`; new optional hook **`onStartTurn`** (fires for the active
+  player's in-play cards in the Start phase).
+- **New systems:** card draw; bounce/return-to-hand (resets card; tokens exile); discard
+  recall (Convergence); tokens + Fork (on-enter copy, exiled on leave, no Reassemble,
+  end-of-turn cleanup of `tokenUntilEndOfTurn`); **modal/opponent-dilemma** via a
+  `pendingChoice` (internal.ts) + `resolveChoice` intent — gated in `getLegalIntents`,
+  resolved by a data-encoded `ChoiceEffect` interpreter, with interactive cross-player
+  handoff in sim/search/web/AI (mirrors the block & reassemble handoffs).
+- **Two DEF auras** (Treasury Yoko, Replicant Chorus) read in `combat.ts:effectiveDef`.
+- **Balance:** new mechanics produce **0 stalls**; the `Spooky Reboot` starter is currently
+  overpowered (~72%) and needs the same iterative sim-tuning the base set got (levers:
+  Echo Raider Raid 2→1, trim Glitchstorm/bounce, soften the cheap-raider density).
 - **`effectiveAtk` / `effectiveDef` now exported** from the engine public API. The web UI
   (GameBoard + OnlineScreen) renders these instead of re-deriving stats — removed the
   duplicated `displayDefFor` copies that had drifted (missed `defBonusUntilNextTurn` and all

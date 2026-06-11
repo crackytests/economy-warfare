@@ -16,6 +16,7 @@ export const KEYWORD_TEXT: Record<Keyword, string> = {
     "Guardbreak — when attacking, choose one ready enemy front-row character that cannot block this attack.",
   Siege: "Siege — may attack any enemy back-row card directly, ignoring the front row.",
   Vehicle: "Vehicle — a piloted unit; fights in the front row.",
+  Fork: "Fork — when it enters play, create a token copy of it. The copy is exiled (removed) when it leaves play and cannot Reassemble.",
 };
 
 export const KEYWORD_LABEL: Record<Keyword, string> = {
@@ -27,4 +28,5 @@ export const KEYWORD_LABEL: Record<Keyword, string> = {
   Guardbreak: "Guardbreak",
   Siege: "Siege",
   Vehicle: "Vehicle",
+  Fork: "Fork",
 };

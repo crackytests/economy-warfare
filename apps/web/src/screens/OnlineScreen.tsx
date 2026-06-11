@@ -97,6 +97,8 @@ function intentLabel(state: GameState, intent: Intent): string {
       return "Take hit (no block)";
     case "reassembleChoice":
       return intent.pay ? "Reassemble (pay)" : "Decline Reassemble";
+    case "resolveChoice":
+      return `Choose option ${intent.optionIndex + 1}`;
     case "advancePhase":
       return "Next Phase";
     case "endTurn":

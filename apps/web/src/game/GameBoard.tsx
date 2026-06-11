@@ -172,6 +172,8 @@ function intentLabel(state: GameState, intent: Intent): string {
       const d = card ? cardDefFor(card) : undefined;
       return intent.pay ? `Reassemble ${d?.name ?? "card"} (-$${d?.reassembleCost ?? 1})` : `Decline Reassemble`;
     }
+    case "resolveChoice":
+      return choiceOptionLabel(state, intent.optionIndex) ?? `Choose option ${intent.optionIndex + 1}`;
     case "advancePhase":
       return "Next Phase";
     case "endTurn":
@@ -179,6 +181,12 @@ function intentLabel(state: GameState, intent: Intent): string {
     case "concede":
       return "Concede";
   }
+}
+
+/** Read the human-readable label of a pending-choice option (from engine priv). */
+function choiceOptionLabel(state: GameState, idx: number): string | undefined {
+  const pc = (state as unknown as { __ew?: { pendingChoice?: { options: { label: string }[] } } }).__ew?.pendingChoice;
+  return pc?.options[idx]?.label;
 }
 
 function intentCategory(intent: Intent): string {
@@ -195,6 +203,7 @@ function intentCategory(intent: Intent): string {
     case "declareBlock":
     case "skipBlock": return "Combat";
     case "reassembleChoice": return "Reassemble";
+    case "resolveChoice": return "Choice";
     case "advancePhase": return "Phase";
     case "endTurn": return "Turn";
     case "concede": return "Game";
@@ -889,11 +898,13 @@ export function GameBoard({ mode, deckId }: GameBoardProps) {
   // its turn and skip your interactive defense). This guards the human's combat input.
   const humanMustRespond = useMemo(
     () =>
-      state.activePlayerId === PLAYER_B &&
-      yourCombatIntents.some(
-        (i) => i.kind === "declareBlock" || i.kind === "skipBlock" || i.kind === "reassembleChoice",
-      ),
-    [state.activePlayerId, yourCombatIntents],
+      (state.activePlayerId === PLAYER_B &&
+        yourCombatIntents.some(
+          (i) => i.kind === "declareBlock" || i.kind === "skipBlock" || i.kind === "reassembleChoice",
+        )) ||
+      // A modal/dilemma is awaiting YOUR pick (can arise on either turn).
+      getLegalIntents(state, PLAYER_A, cards).some((i) => i.kind === "resolveChoice"),
+    [state, yourCombatIntents, cards],
   );
 
   useEffect(() => {
@@ -901,7 +912,7 @@ export function GameBoard({ mode, deckId }: GameBoardProps) {
     if (humanMustRespond) return;
     if (state.activePlayerId === PLAYER_A) {
       const oppIntents = getLegalIntents(state, PLAYER_B, cards).filter(
-        (i) => i.kind === "declareBlock" || i.kind === "skipBlock" || i.kind === "reassembleChoice",
+        (i) => i.kind === "declareBlock" || i.kind === "skipBlock" || i.kind === "reassembleChoice" || i.kind === "resolveChoice",
       );
       if (oppIntents.length === 0) return;
     } else if (state.activePlayerId !== PLAYER_B) {
@@ -917,7 +928,7 @@ export function GameBoard({ mode, deckId }: GameBoardProps) {
     setAiPending(true);
     const timer = setTimeout(() => {
       const s = stateRef.current;
-      if (s.winnerId || s.activePlayerId !== PLAYER_B && !(aiIntent.kind === "declareBlock" || aiIntent.kind === "skipBlock" || aiIntent.kind === "reassembleChoice")) { setAiPending(false); return; }
+      if (s.winnerId || s.activePlayerId !== PLAYER_B && !(aiIntent.kind === "declareBlock" || aiIntent.kind === "skipBlock" || aiIntent.kind === "reassembleChoice" || aiIntent.kind === "resolveChoice")) { setAiPending(false); return; }
       setAiPending(false);
       dispatchRef.current(aiIntent);
     }, delay);

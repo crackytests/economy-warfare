@@ -137,6 +137,38 @@ export function discardCard(state: GameState, card: CardInstance): void {
   owner.discard.push(card);
 }
 
+/**
+ * Return an in-play card to its owner's hand ("reboot" / bounce). Resets it to a
+ * pristine state (no damage, ready, no Reassemble history). Tokens are EXILED
+ * (removed entirely) instead of going to hand. No-op for cards not in play.
+ */
+export function returnToHand(state: GameState, card: CardInstance): void {
+  const loc = locate(state, card.instanceId);
+  if (!loc || (loc.zone !== "front" && loc.zone !== "back" && loc.zone !== "ongoing")) return;
+  const removed = removeFromZone(zoneForRow(loc.controller, loc.zone), card.instanceId);
+  if (!removed) return;
+  removed.row = null;
+  removed.exhausted = false;
+  removed.currentDef = null;
+  removed.controllerId = removed.ownerId;
+  clearTempModifiers(removed);
+  delete removed.defPenaltyFromReassemble;
+  delete removed.reassembledCount;
+  delete removed.cannotReadyNextStart;
+  if (removed.isToken) return; // tokens vanish rather than return to hand
+  state.players[removed.ownerId]!.hand.push(removed);
+}
+
+/** Return a card from its owner's discard to their hand (Convergence / recall). */
+export function recallFromDiscard(state: GameState, card: CardInstance): boolean {
+  const owner = state.players[card.ownerId]!;
+  const removed = removeFromZone(owner.discard, card.instanceId);
+  if (!removed) return false;
+  removed.row = null;
+  owner.hand.push(removed);
+  return true;
+}
+
 /** Clear end-of-turn temporary modifiers on a single instance. */
 export function clearTempModifiers(card: CardInstance): void {
   delete card.tempAtkModifier;

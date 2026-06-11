@@ -29,7 +29,8 @@ export type Keyword =
   | "Deploy"
   | "Guardbreak"
   | "Siege"
-  | "Vehicle";
+  | "Vehicle"
+  | "Fork"; // on enter, create a token copy of this character (exiled on leave)
 
 export type Row = "front" | "back" | "ongoing";
 
@@ -97,6 +98,12 @@ export interface CardInstance {
   // Flags set by effects
   cannotAttack?: boolean;
   cannotBlock?: boolean;
+
+  // A token (created by Fork / copy effects). Exiled (removed, not discarded)
+  // when it leaves play; cannot Reassemble. May be temporary (until end of turn).
+  isToken?: boolean;
+  tokenUntilEndOfTurn?: boolean;   // removed in the End Phase of the turn it was made
+  tokenUntilNextTurn?: boolean;    // removed at the controller's next Start phase
 }
 
 export type PlayerId = string;
