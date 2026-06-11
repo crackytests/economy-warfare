@@ -883,7 +883,7 @@ describe("combat and effects", () => {
     s = applyIntent(s, { kind: "playCard", player: P1, instanceId: forced2.instanceId, targets: [{ kind: "card", instanceId: victim2.instanceId }] }, cards).state;
     s = applyIntent(s, { kind: "playCard", player: P1, instanceId: next2.instanceId }, cards).state;
 
-    expect(s.players[P1]!.money).toBe(13);
+    expect(s.players[P1]!.money).toBe(15); // cheap-actions experiment: Forced Liquidation now costs 1
   });
 
   it("Emergency Protocols keeps its next Character discount across turns", () => {
@@ -907,7 +907,7 @@ describe("combat and effects", () => {
       instanceId: liquidation.instanceId,
       targets: [{ kind: "card", instanceId: victim.instanceId }],
     }, cards).state;
-    expect(s.players[P1]!.money).toBe(8);
+    expect(s.players[P1]!.money).toBe(9); // cheap-actions experiment: Forced Liquidation now costs 1
 
     s = applyIntent(s, { kind: "endTurn", player: P1 }, cards).state;
     s = applyIntent(s, { kind: "endTurn", player: P2 }, cards).state;
