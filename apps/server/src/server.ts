@@ -4,6 +4,7 @@ import {
   buildCardIndex,
   createGame,
   redactFor,
+  redactForSpectator,
   type CardIndex,
 } from "@ew/engine";
 import type {
@@ -14,6 +15,7 @@ import type {
   Intent,
   PlayerId,
   ServerMessage,
+  TableInfo,
 } from "@ew/shared";
 import { ALL_CARDS } from "./cards.js";
 
@@ -50,6 +52,10 @@ interface Room {
   id: string;
   /** Seats keyed by engine PlayerId ("p1" / "p2"). */
   seats: Map<PlayerId, Seat>;
+  /** Non-seated watchers receiving redacted spectator views. */
+  spectators: Set<WebSocket>;
+  /** Private rooms are reachable by code but never listed in the public lobby. */
+  isPrivate: boolean;
   state: GameState | null;
   cards: CardIndex;
   rngSeed: number;
@@ -60,6 +66,10 @@ interface Room {
 const rooms = new Map<string, Room>();
 /** Reverse index: which (room, seat) a given socket currently occupies. */
 const wsToSeat = new Map<WebSocket, { roomId: string; playerId: PlayerId }>();
+/** Sockets currently watching a room as spectators (room id per socket). */
+const wsToSpectatedRoom = new Map<WebSocket, string>();
+/** Sockets subscribed to browsable-lobby pushes (in the lobby, not yet in a game). */
+const lobbySubscribers = new Set<WebSocket>();
 
 // Shared card index — base data is immutable, safe to share across rooms.
 const CARD_INDEX: CardIndex = buildCardIndex(ALL_CARDS as CardDef[]);
@@ -93,19 +103,60 @@ function send(ws: WebSocket | null, msg: ServerMessage): void {
   }
 }
 
+/** Send a non-state message to everyone watching the room (seats + spectators). */
 function broadcast(room: Room, msg: ServerMessage): void {
   for (const seat of room.seats.values()) {
     send(seat.ws, msg);
+  }
+  for (const ws of room.spectators) {
+    send(ws, msg);
   }
 }
 
 function broadcastState(room: Room): void {
   if (!room.state) return;
+  const watching = room.spectators.size;
   for (const [pid, seat] of room.seats) {
     if (!seat.ws) continue;
     const view = redactFor(room.state, pid);
-    send(seat.ws, { t: "state", view });
+    send(seat.ws, { t: "state", view: { ...view, spectators: watching } });
   }
+  if (watching > 0) {
+    const view = redactForSpectator(room.state);
+    for (const ws of room.spectators) send(ws, { t: "state", view: { ...view, spectators: watching } });
+  }
+}
+
+// ---- lobby (browsable rooms) ----------------------------------------------
+
+function tableStatus(room: Room): TableInfo["status"] {
+  if (room.state?.winnerId) return "over";
+  if (room.state) return "live";
+  return room.seats.size >= 1 ? "waiting" : "open";
+}
+
+/** Snapshot of all PUBLIC rooms for the browsable lobby. */
+function buildLobby(): TableInfo[] {
+  const tables: TableInfo[] = [];
+  for (const room of rooms.values()) {
+    if (room.isPrivate) continue;
+    tables.push({
+      code: room.id,
+      seats: {
+        p1: room.seats.get("p1")?.name ?? null,
+        p2: room.seats.get("p2")?.name ?? null,
+      },
+      status: tableStatus(room),
+      spectators: room.spectators.size,
+    });
+  }
+  return tables;
+}
+
+function broadcastLobby(): void {
+  if (lobbySubscribers.size === 0) return;
+  const msg: ServerMessage = { t: "lobby", tables: buildLobby() };
+  for (const ws of lobbySubscribers) send(ws, msg);
 }
 
 function sendStateTo(room: Room, playerId: PlayerId): void {
@@ -124,6 +175,8 @@ function createRoom(roomId: string): Room {
   return {
     id: roomId,
     seats: new Map(),
+    spectators: new Set(),
+    isPrivate: false,
     state: null,
     cards: CARD_INDEX,
     rngSeed,
@@ -150,6 +203,7 @@ function startGame(room: Room): void {
 
   broadcast(room, { t: "event", message: "Both players ready — game on." });
   broadcastState(room);
+  broadcastLobby(); // status flips to "live"
 }
 
 function handleJoinRoom(
@@ -157,15 +211,20 @@ function handleJoinRoom(
   requestedRoomId: string,
   playerName: string,
   deck: DeckList,
+  preferredSeat?: PlayerId,
+  isPrivate = false,
 ): void {
   const name = (playerName || "Player").trim();
 
   // Empty/blank roomId => "create room": mint a fresh code.
+  const minting = requestedRoomId.trim() === "";
   const roomId = requestedRoomId.trim().toUpperCase() || mintRoomCode(randomSource);
 
   let room = rooms.get(roomId);
   if (!room) {
     room = createRoom(roomId);
+    // Privacy is fixed at creation; only the minting client may request it.
+    room.isPrivate = minting && isPrivate;
     rooms.set(roomId, room);
   }
 
@@ -194,11 +253,17 @@ function handleJoinRoom(
     return;
   }
   if (room.state) {
-    send(ws, { t: "error", code: "GAME_STARTED", message: "Game already in progress." });
+    send(ws, { t: "error", code: "GAME_STARTED", message: "Game already in progress. Spectate instead." });
     return;
   }
 
-  const playerId: PlayerId = room.seats.has("p1") ? "p2" : "p1";
+  // Honor the requested seat side if it's free; otherwise take the open one.
+  const playerId: PlayerId =
+    preferredSeat && !room.seats.has(preferredSeat)
+      ? preferredSeat
+      : room.seats.has("p1")
+        ? "p2"
+        : "p1";
   room.seats.set(playerId, { ws, name, deck, connected: true });
   wsToSeat.set(ws, { roomId, playerId });
 
@@ -210,6 +275,32 @@ function handleJoinRoom(
   } else {
     send(ws, { t: "event", message: `Waiting for opponent in room "${roomId}"...` });
   }
+  broadcastLobby();
+}
+
+function handleSpectateRoom(ws: WebSocket, requestedRoomId: string): void {
+  const roomId = requestedRoomId.trim().toUpperCase();
+  const room = rooms.get(roomId);
+  if (!room) {
+    send(ws, { t: "error", code: "NO_ROOM", message: "No such room." });
+    return;
+  }
+  room.spectators.add(ws);
+  wsToSpectatedRoom.set(ws, roomId);
+  send(ws, { t: "spectating", roomId });
+  if (room.state) {
+    // Re-broadcast to everyone so the new watcher gets state and seats + existing
+    // spectators see the updated spectator count.
+    broadcastState(room);
+  } else {
+    send(ws, { t: "event", message: `Watching room "${roomId}" — waiting for the game to start.` });
+  }
+  broadcastLobby(); // spectator count changed
+}
+
+function handleListLobby(ws: WebSocket): void {
+  lobbySubscribers.add(ws);
+  send(ws, { t: "lobby", tables: buildLobby() });
 }
 
 function handleIntent(ws: WebSocket, roomId: string, intent: Intent): void {
@@ -251,10 +342,29 @@ function handleIntent(ws: WebSocket, roomId: string, intent: Intent): void {
 
   if (room.state.winnerId) {
     broadcast(room, { t: "gameOver", winnerId: room.state.winnerId });
+    broadcastLobby(); // status flips to "over"
   }
 }
 
 function handleLeaveRoom(ws: WebSocket): void {
+  // Spectator leaving: just stop watching; never touches seats or game state.
+  const spectatedRoomId = wsToSpectatedRoom.get(ws);
+  if (spectatedRoomId) {
+    wsToSpectatedRoom.delete(ws);
+    const room = rooms.get(spectatedRoomId);
+    if (room) {
+      room.spectators.delete(ws);
+      // A spectated room with no seats left and no watchers can be reclaimed.
+      if (room.seats.size === 0 && room.spectators.size === 0) {
+        rooms.delete(room.id);
+      } else {
+        broadcastState(room); // remaining viewers see the decremented count
+      }
+      broadcastLobby(); // spectator count changed
+    }
+    return;
+  }
+
   const mapping = wsToSeat.get(ws);
   if (!mapping) return;
   wsToSeat.delete(ws);
@@ -276,11 +386,12 @@ function handleLeaveRoom(ws: WebSocket): void {
 
   // Pre-game or finished: free the seat outright.
   room.seats.delete(mapping.playerId);
-  if (room.seats.size === 0) {
+  if (room.seats.size === 0 && room.spectators.size === 0) {
     rooms.delete(room.id);
   } else {
     broadcast(room, { t: "event", message: "Opponent left the room." });
   }
+  broadcastLobby();
 }
 
 function handleMessage(ws: WebSocket, raw: string): void {
@@ -294,7 +405,13 @@ function handleMessage(ws: WebSocket, raw: string): void {
 
   switch (msg.t) {
     case "joinRoom":
-      handleJoinRoom(ws, msg.roomId, msg.playerName, msg.deck);
+      handleJoinRoom(ws, msg.roomId, msg.playerName, msg.deck, msg.seat, msg.private);
+      break;
+    case "spectateRoom":
+      handleSpectateRoom(ws, msg.roomId);
+      break;
+    case "listLobby":
+      handleListLobby(ws);
       break;
     case "intent":
       handleIntent(ws, msg.roomId, msg.intent);
@@ -305,6 +422,12 @@ function handleMessage(ws: WebSocket, raw: string): void {
     default:
       send(ws, { t: "error", code: "UNKNOWN_MESSAGE", message: "Unknown message type." });
   }
+}
+
+/** Full teardown when a socket drops: unsubscribe lobby, stop spectating, free seat. */
+function handleDisconnect(ws: WebSocket): void {
+  lobbySubscribers.delete(ws);
+  handleLeaveRoom(ws);
 }
 
 export interface RunningServer {
@@ -327,8 +450,8 @@ export function startServer(port = 3100): Promise<RunningServer> {
         else if (Buffer.isBuffer(data)) handleMessage(ws, data.toString("utf-8"));
         else if (Array.isArray(data)) handleMessage(ws, Buffer.concat(data).toString("utf-8"));
       });
-      ws.on("close", () => handleLeaveRoom(ws));
-      ws.on("error", () => handleLeaveRoom(ws));
+      ws.on("close", () => handleDisconnect(ws));
+      ws.on("error", () => handleDisconnect(ws));
     });
 
     wss.on("listening", () => {
@@ -353,6 +476,8 @@ export function startServer(port = 3100): Promise<RunningServer> {
 export function __resetRooms(): void {
   rooms.clear();
   wsToSeat.clear();
+  wsToSpectatedRoom.clear();
+  lobbySubscribers.clear();
 }
 
 // Run directly (tsx src/server.ts). Guarded so importing for tests is side-effect free.

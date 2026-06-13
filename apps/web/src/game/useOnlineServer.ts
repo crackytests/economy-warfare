@@ -6,6 +6,7 @@ import type {
   PlayerId,
   PlayerView,
   ServerMessage,
+  TableInfo,
 } from "@ew/shared";
 
 export type ConnectionStatus = "idle" | "connecting" | "open" | "closed" | "error";
@@ -26,14 +27,20 @@ export interface OnlineTransport {
   inRoom: boolean;
   /** True once the first state broadcast (game start) has arrived. */
   gameStarted: boolean;
+  /** True when watching a room as a non-seated spectator. */
+  spectating: boolean;
+  /** Browsable lobby snapshot (public tables), pushed by the server. */
+  tables: TableInfo[];
   events: string[];
   error: string | null;
   gameOver: PlayerId | null;
-  /** Join (or create, with empty roomId) a room with a deck. */
-  joinRoom: (roomId: string, playerName: string, deck: DeckList) => void;
+  /** Join (or create, with empty roomId) a room with a deck. Optional seat side / private. */
+  joinRoom: (roomId: string, playerName: string, deck: DeckList, opts?: { seat?: PlayerId; private?: boolean }) => void;
+  /** Watch a room as a spectator (no seat). */
+  spectateRoom: (roomId: string) => void;
   /** Submit an intent for the local player. */
   sendIntent: (intent: Intent) => void;
-  /** Leave the current room. */
+  /** Leave the current room (or stop spectating) and return to the lobby. */
   leaveRoom: () => void;
   /** Clear the current error banner. */
   clearError: () => void;
@@ -88,6 +95,8 @@ interface InternalState {
   roomId: string | null;
   inRoom: boolean;
   gameStarted: boolean;
+  spectating: boolean;
+  tables: TableInfo[];
   events: string[];
   error: string | null;
   gameOver: PlayerId | null;
@@ -100,6 +109,8 @@ const INITIAL: InternalState = {
   roomId: null,
   inRoom: false,
   gameStarted: false,
+  spectating: false,
+  tables: [],
   events: [],
   error: null,
   gameOver: null,
@@ -114,7 +125,9 @@ const INITIAL: InternalState = {
 export function useOnlineServer(enabled: boolean, url: string = resolveServerUrl()) {
   const wsRef = useRef<WebSocket | null>(null);
   // Remember the last join request so we can re-issue it on reconnect.
-  const lastJoinRef = useRef<{ roomId: string; playerName: string; deck: DeckList } | null>(null);
+  const lastJoinRef = useRef<{ roomId: string; playerName: string; deck: DeckList; seat?: PlayerId; private?: boolean } | null>(null);
+  // Remember a spectated room so a transient reconnect re-attaches the watcher.
+  const lastSpectateRef = useRef<string | null>(null);
   const [state, setState] = useState<InternalState>(INITIAL);
 
   const rawSend = useCallback((msg: ClientMessage) => {
@@ -137,6 +150,8 @@ export function useOnlineServer(enabled: boolean, url: string = resolveServerUrl
       if (cancelled) return;
       opened = true;
       setState((s) => ({ ...s, status: "open", error: null }));
+      // Subscribe to the browsable lobby as soon as we connect.
+      ws.send(JSON.stringify({ t: "listLobby" } satisfies ClientMessage));
       // Re-issue a pending join (covers reconnect after a transient drop).
       const pending = lastJoinRef.current;
       if (pending) {
@@ -146,8 +161,12 @@ export function useOnlineServer(enabled: boolean, url: string = resolveServerUrl
             roomId: pending.roomId,
             playerName: pending.playerName,
             deck: pending.deck,
+            seat: pending.seat,
+            private: pending.private,
           } satisfies ClientMessage),
         );
+      } else if (lastSpectateRef.current) {
+        ws.send(JSON.stringify({ t: "spectateRoom", roomId: lastSpectateRef.current } satisfies ClientMessage));
       }
     });
 
@@ -183,10 +202,21 @@ export function useOnlineServer(enabled: boolean, url: string = resolveServerUrl
   }, [enabled, url]);
 
   const joinRoom = useCallback(
-    (roomId: string, playerName: string, deck: DeckList) => {
-      lastJoinRef.current = { roomId, playerName, deck };
+    (roomId: string, playerName: string, deck: DeckList, opts?: { seat?: PlayerId; private?: boolean }) => {
+      lastSpectateRef.current = null;
+      lastJoinRef.current = { roomId, playerName, deck, seat: opts?.seat, private: opts?.private };
       setState((s) => ({ ...s, error: null }));
-      rawSend({ t: "joinRoom", roomId, playerName, deck });
+      rawSend({ t: "joinRoom", roomId, playerName, deck, seat: opts?.seat, private: opts?.private });
+    },
+    [rawSend],
+  );
+
+  const spectateRoom = useCallback(
+    (roomId: string) => {
+      lastJoinRef.current = null;
+      lastSpectateRef.current = roomId;
+      setState((s) => ({ ...s, error: null, spectating: true }));
+      rawSend({ t: "spectateRoom", roomId });
     },
     [rawSend],
   );
@@ -202,10 +232,14 @@ export function useOnlineServer(enabled: boolean, url: string = resolveServerUrl
   );
 
   const leaveRoom = useCallback(() => {
-    const roomId = stateRoomIdRef.current ?? lastJoinRef.current?.roomId ?? "";
+    const roomId = stateRoomIdRef.current ?? lastSpectateRef.current ?? lastJoinRef.current?.roomId ?? "";
     rawSend({ t: "leaveRoom", roomId });
     lastJoinRef.current = null;
-    setState((s) => ({ ...INITIAL, status: s.status }));
+    lastSpectateRef.current = null;
+    // Return to the lobby: clear the game/spectator fields, keep the connection,
+    // and re-request a fresh lobby snapshot (we stay subscribed server-side).
+    setState((s) => ({ ...INITIAL, status: s.status, tables: s.tables }));
+    rawSend({ t: "listLobby" });
   }, [rawSend]);
 
   const clearError = useCallback(() => setState((s) => ({ ...s, error: null })), []);
@@ -223,10 +257,13 @@ export function useOnlineServer(enabled: boolean, url: string = resolveServerUrl
     roomId: state.roomId,
     inRoom: state.inRoom,
     gameStarted: state.gameStarted,
+    spectating: state.spectating,
+    tables: state.tables,
     events: state.events,
     error: state.error,
     gameOver: state.gameOver,
     joinRoom,
+    spectateRoom,
     sendIntent,
     leaveRoom,
     clearError,
@@ -237,7 +274,11 @@ export function useOnlineServer(enabled: boolean, url: string = resolveServerUrl
 function reduceMessage(s: InternalState, msg: ServerMessage): InternalState {
   switch (msg.t) {
     case "joined":
-      return { ...s, inRoom: true, roomId: msg.roomId, youAre: msg.youAre, error: null };
+      return { ...s, inRoom: true, spectating: false, roomId: msg.roomId, youAre: msg.youAre, error: null };
+    case "spectating":
+      return { ...s, spectating: true, roomId: msg.roomId, error: null };
+    case "lobby":
+      return { ...s, tables: msg.tables };
     case "state":
       return { ...s, view: msg.view, gameStarted: true, youAre: msg.view.youAre };
     case "event":

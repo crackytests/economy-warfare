@@ -38,11 +38,11 @@
 /packages
   /shared               # @ew/shared — types, wire protocol, ownership interface. No deps.
     src/types.ts        #   CardDef, CardInstance, GameState, DeckList, DECK_RULES, SETUP
-    src/protocol.ts     #   Intent union, TargetRef, Client/ServerMessage (WS envelope)
+    src/protocol.ts     #   Intent union, TargetRef, Client/ServerMessage (WS envelope), TableInfo (lobby)
     src/ownership.ts    #   CardOwnership interface + UnlimitedOwnership stub (bonding-curve seam)
   /engine               # @ew/engine — pure rules. Depends only on @ew/shared (NOT ownership).
     src/index.ts        #   PUBLIC API (contract): createGame, applyIntent, getLegalIntents,
-                        #   getLegalAttackTargets, redactFor, checkLoss, validateDeck, buildCardIndex
+                        #   getLegalAttackTargets, redactFor, redactForSpectator, checkLoss, validateDeck, buildCardIndex
     src/rng.ts          #   seeded RNG (done) — never use Math.random in the engine
     src/effects.ts      #   EFFECTS registry: cardId -> per-card hooks (extension point)
     src/state.ts        #   (todo) createGame, redactFor, zone helpers
@@ -141,12 +141,23 @@ chooser the option list and blocks all else; the reducer applies a data-encoded
 
 ```
 client (web)                     server (Node + ws)
-  joinRoom + DeckList  ───────▶   create/join room, build game (engine.createGame)
-  intent               ───────▶   engine.applyIntent (authoritative)
+  listLobby            ───────▶   subscribe to public-room list
+                       ◀───────   lobby: TableInfo[]   (pushed on any seat/status change)
+  joinRoom + DeckList  ───────▶   create/join room (optional seat side / private), build game
+  spectateRoom         ───────▶   watch a live room as a non-seated viewer
+  intent               ───────▶   engine.applyIntent (authoritative; rejected for spectators)
                        ◀───────   state: redactFor(state, you)   (opponent zones hidden)
-                       ◀───────   gameOver / error
+                       ◀───────   state: redactForSpectator(state) (both hands hidden) — spectators
+                       ◀───────   joined / spectating / gameOver / error
 ```
 
+- **Browsable lobby:** the server keeps a set of lobby-subscriber sockets and pushes a
+  `TableInfo[]` snapshot (code, per-seat names, status, spectator count) whenever a seat
+  fills/empties or a game starts/ends. The client renders these as "tables" with two seats.
+  Private rooms (minted with `private: true`) are reachable by code but never listed.
+- **Seat choice:** `joinRoom` may carry a preferred `seat` ("p1"/"p2"); the server honors it
+  if free. **Spectating:** `spectateRoom` attaches a non-seated viewer who receives
+  `redactForSpectator` state (both players' hands/decks hidden) and whose intents are rejected.
 - Server validates **every** intent with the engine; rejects illegal ones with `error`.
 - Server is the only place the unredacted `GameState` lives during a match.
 - Reconnect: room keeps state; on rejoin, resend current `redactFor` view.
