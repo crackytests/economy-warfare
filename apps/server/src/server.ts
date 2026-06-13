@@ -115,14 +115,15 @@ function broadcast(room: Room, msg: ServerMessage): void {
 
 function broadcastState(room: Room): void {
   if (!room.state) return;
+  const watching = room.spectators.size;
   for (const [pid, seat] of room.seats) {
     if (!seat.ws) continue;
     const view = redactFor(room.state, pid);
-    send(seat.ws, { t: "state", view });
+    send(seat.ws, { t: "state", view: { ...view, spectators: watching } });
   }
-  if (room.spectators.size > 0) {
+  if (watching > 0) {
     const view = redactForSpectator(room.state);
-    for (const ws of room.spectators) send(ws, { t: "state", view });
+    for (const ws of room.spectators) send(ws, { t: "state", view: { ...view, spectators: watching } });
   }
 }
 
@@ -288,7 +289,9 @@ function handleSpectateRoom(ws: WebSocket, requestedRoomId: string): void {
   wsToSpectatedRoom.set(ws, roomId);
   send(ws, { t: "spectating", roomId });
   if (room.state) {
-    send(ws, { t: "state", view: redactForSpectator(room.state) });
+    // Re-broadcast to everyone so the new watcher gets state and seats + existing
+    // spectators see the updated spectator count.
+    broadcastState(room);
   } else {
     send(ws, { t: "event", message: `Watching room "${roomId}" — waiting for the game to start.` });
   }
@@ -351,6 +354,12 @@ function handleLeaveRoom(ws: WebSocket): void {
     const room = rooms.get(spectatedRoomId);
     if (room) {
       room.spectators.delete(ws);
+      // A spectated room with no seats left and no watchers can be reclaimed.
+      if (room.seats.size === 0 && room.spectators.size === 0) {
+        rooms.delete(room.id);
+      } else {
+        broadcastState(room); // remaining viewers see the decremented count
+      }
       broadcastLobby(); // spectator count changed
     }
     return;

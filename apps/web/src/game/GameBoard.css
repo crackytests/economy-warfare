@@ -1591,3 +1591,16 @@
 .ew-table__status--waiting { color: var(--accent); }
 .ew-table__status--live { color: var(--accent-2); }
 .ew-table__status--over { color: var(--ink-2); }
+
+.ew-watching {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-2);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-2) 14%, transparent);
+}
+.ew-watching__eye { font-size: 12px; line-height: 1; }

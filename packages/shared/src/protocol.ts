@@ -16,6 +16,7 @@ export interface PlayerView {
   youAre: PlayerId;
   legalIntents?: Intent[]; // optional server hint for UI affordances
   spectator?: boolean; // true when this view is for a non-seated watcher (both hands hidden, read-only)
+  spectators?: number; // how many spectators are currently watching this room
 }
 
 export type Intent =

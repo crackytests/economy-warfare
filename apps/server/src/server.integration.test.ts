@@ -377,11 +377,18 @@ describe("online server integration (two real ws clients)", () => {
     await c.waitFor((m) => m.t === "spectating");
     const sview = await c.waitFor<Extract<ServerMessage, { t: "state" }>>((m) => m.t === "state");
     expect(sview.view.spectator).toBe(true);
+    expect(sview.view.spectators).toBe(1);
     // A spectator may see neither player's hand or deck.
     for (const pid of ["p1", "p2"] as PlayerId[]) {
       expect(sview.view.state.players[pid]!.hand.every((card) => card.cardId === "__hidden__")).toBe(true);
       expect(sview.view.state.players[pid]!.deck.every((card) => card.cardId === "__hidden__")).toBe(true);
     }
+
+    // The seated players get a fresh state carrying the live spectator count.
+    const aWithCount = await a.waitFor<Extract<ServerMessage, { t: "state" }>>(
+      (m) => m.t === "state" && m.view.spectators === 1,
+    );
+    expect(aWithCount.view.spectators).toBe(1);
 
     // A spectator has no seat, so any intent is rejected.
     c.errors = [];

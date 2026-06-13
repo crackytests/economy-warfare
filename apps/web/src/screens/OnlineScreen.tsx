@@ -341,6 +341,7 @@ function OnlineBoard({
   error,
   gameOver,
   spectator = false,
+  spectatorCount = 0,
   onIntent,
   onLeave,
   onClearError,
@@ -353,6 +354,7 @@ function OnlineBoard({
   error: string | null;
   gameOver: PlayerId | null;
   spectator?: boolean;
+  spectatorCount?: number;
   onIntent: (intent: Intent) => void;
   onLeave: () => void;
   onClearError: () => void;
@@ -427,6 +429,11 @@ function OnlineBoard({
               ? "Your turn"
               : `${opp.name}'s turn`}
         </span>
+        {spectatorCount > 0 && (
+          <span className="ew-watching" title={`${spectatorCount} watching`}>
+            <span className="ew-watching__eye" aria-hidden="true">&#128065;</span> {spectatorCount}
+          </span>
+        )}
         {!spectator && !gameOver && (
           <button
             className="ew-toolbar__btn ew-toolbar__btn--concede"
@@ -684,6 +691,7 @@ export function OnlineScreen({ deckId }: { deckId: string | null }) {
         error={error}
         gameOver={gameOver}
         spectator={!!view.spectator}
+        spectatorCount={view.spectators ?? 0}
         onIntent={(intent) => sendIntent({ ...intent, player: youAre ?? view.youAre } as Intent)}
         onLeave={leaveRoom}
         onClearError={clearError}
