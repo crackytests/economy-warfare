@@ -638,7 +638,7 @@ export function OnlineScreen({ deckId }: { deckId: string | null }) {
   const [chosenDeckId, setChosenDeckId] = useState<string>(
     () =>
       selectableDecks.find((d) => d.id === deckId)?.id ??
-      selectableDecks.find((d) => d.id === "system-x-starter")?.id ??
+      selectableDecks.find((d) => d.id === "systemx-mobilize-starter")?.id ??
       selectableDecks[0]?.id ??
       "",
   );

@@ -200,6 +200,16 @@ function declareAttack(
   });
 
   const defender = state.players[opponentOf(state, intent.player)]!;
+  // A Siege attack that reaches a back-row card ignores the front row entirely:
+  // the defender cannot block it, so it resolves immediately (no Guardbreak step
+  // either — there is nothing to ground).
+  const tgt = intent.target;
+  const targetIsBackRowCard =
+    tgt.kind === "card" && defender.backRow.some((c) => c.instanceId === tgt.instanceId);
+  if (targetIsBackRowCard) {
+    resolveAttack(state, undefined, cards);
+    return { state, events: [] };
+  }
   if (hasGuardbreak(loc.card, cards) && defender.frontRow.some((c) => canBlock(c, cards))) {
     return { state, events: [] };
   }

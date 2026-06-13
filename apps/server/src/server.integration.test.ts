@@ -23,8 +23,8 @@ const DECKS = (
     readFileSync(resolve(__dir, "../../../data/starter_decks.json"), "utf-8"),
   ) as StarterDecksFile
 ).decks;
-const DECK_A = DECKS.find((d) => d.id === "system-x-starter") ?? DECKS[0]!;
-const DECK_B = DECKS.find((d) => d.id === "yoko-imperium-starter") ?? DECKS[1]!;
+const DECK_A = DECKS.find((d) => d.id === "systemx-mobilize-starter") ?? DECKS[0]!;
+const DECK_B = DECKS.find((d) => d.id === "yoko-continuity-starter") ?? DECKS[1]!;
 
 /**
  * A thin test harness around a real `ws` client that records every server

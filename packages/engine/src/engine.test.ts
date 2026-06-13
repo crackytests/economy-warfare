@@ -43,8 +43,8 @@ function newGame(opts?: Partial<NewGameOptions>): GameState {
     cards,
     rngSeed: 12345,
     players: [
-      { id: P1, name: "Alice", deck: starterDeck("system-x-starter") },
-      { id: P2, name: "Bob", deck: starterDeck("yoko-imperium-starter") },
+      { id: P1, name: "Alice", deck: starterDeck("systemx-mobilize-starter") },
+      { id: P2, name: "Bob", deck: starterDeck("yoko-continuity-starter") },
     ],
     startingPlayerId: P1,
     ...opts,
@@ -68,10 +68,10 @@ describe("buildCardIndex", () => {
 describe("validateDeck", () => {
   it("accepts the starter decks (40 cards, <=4 copies)", () => {
     for (const id of [
-      "yoko-imperium-starter",
-      "spooky-ones-starter",
-      "linda-bioroids-starter",
-      "system-x-starter",
+      "yoko-continuity-starter",
+      "spooky-reboot-starter",
+      "linda-parallel-starter",
+      "systemx-mobilize-starter",
     ]) {
       const res = validateDeck(starterDeck(id), cards);
       expect(res.ok, `${id}: ${res.reasons.join("; ")}`).toBe(true);
@@ -157,7 +157,7 @@ describe("createGame / setup", () => {
         rngSeed: 1,
         players: [
           { id: P1, name: "A", deck: bad },
-          { id: P2, name: "B", deck: starterDeck("system-x-starter") },
+          { id: P2, name: "B", deck: starterDeck("systemx-mobilize-starter") },
         ],
       }),
     ).toThrow(/unknown card/i);

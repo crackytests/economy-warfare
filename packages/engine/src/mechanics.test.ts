@@ -26,6 +26,8 @@ import type { CardInstance, GameState, Intent, PlayerId } from "@ew/shared";
 import { effectiveAtk, effectiveDef } from "./combat";
 import { totalIncome } from "./economy";
 import { settleToInteractive } from "./reducer";
+import { pickAIIntent } from "./ai";
+import { pickSearchIntent } from "./search-ai";
 
 let cards: CardIndex;
 
@@ -42,8 +44,8 @@ function newGame(opts?: Partial<NewGameOptions>): GameState {
     cards,
     rngSeed: 12345,
     players: [
-      { id: P1, name: "Alice", deck: starterDeck("system-x-starter") },
-      { id: P2, name: "Bob", deck: starterDeck("yoko-imperium-starter") },
+      { id: P1, name: "Alice", deck: starterDeck("systemx-mobilize-starter") },
+      { id: P2, name: "Bob", deck: starterDeck("yoko-continuity-starter") },
     ],
     startingPlayerId: P1,
     ...opts,
@@ -387,11 +389,11 @@ describe("keyword: Siege", () => {
 
     const r = applyIntent(s, { kind: "declareAttack", player: P1, attackerId: siege.instanceId, target: { kind: "card", instanceId: loc.instanceId } }, cards);
     expect(r.error).toBeUndefined();
-    // The defender may still block (front row present), so the attack is pending.
-    // Skip the block and resolve damage: 4 dmg vs def 3 destroys the Location.
-    const resolved = applyIntent(r.state, { kind: "skipBlock", player: P2, attackerId: siege.instanceId }, cards).state;
-    expect(resolved.players[P2]!.backRow.some((c) => c.instanceId === loc.instanceId)).toBe(false);
-    expect(resolved.players[P2]!.discard.some((c) => c.instanceId === loc.instanceId)).toBe(true);
+    // Siege ignores the front row: the back-row attack resolves immediately and
+    // the defender is given no chance to block. 4 dmg vs def 3 destroys the Location.
+    expect(getLegalIntents(r.state, P2, cards).some((i) => i.kind === "declareBlock")).toBe(false);
+    expect(r.state.players[P2]!.backRow.some((c) => c.instanceId === loc.instanceId)).toBe(false);
+    expect(r.state.players[P2]!.discard.some((c) => c.instanceId === loc.instanceId)).toBe(true);
   });
 
   it("Siege can strike ANY back-row card directly, including Characters", () => {
@@ -407,10 +409,43 @@ describe("keyword: Siege", () => {
 
     const r = applyIntent(s, { kind: "declareAttack", player: P1, attackerId: siege.instanceId, target: { kind: "card", instanceId: backChar.instanceId } }, cards);
     expect(r.error).toBeUndefined(); // legal despite the front-row guard
-    const resolved = applyIntent(r.state, { kind: "skipBlock", player: P2, attackerId: siege.instanceId }, cards).state;
-    // 4 dmg vs def 2 destroys the back-row Character.
-    expect(resolved.players[P2]!.backRow.some((c) => c.instanceId === backChar.instanceId)).toBe(false);
-    expect(resolved.players[P2]!.discard.some((c) => c.instanceId === backChar.instanceId)).toBe(true);
+    // Resolves immediately, unblockable. 4 dmg vs def 2 destroys the back-row Character.
+    expect(getLegalIntents(r.state, P2, cards).some((i) => i.kind === "declareBlock")).toBe(false);
+    expect(r.state.players[P2]!.backRow.some((c) => c.instanceId === backChar.instanceId)).toBe(false);
+    expect(r.state.players[P2]!.discard.some((c) => c.instanceId === backChar.instanceId)).toBe(true);
+  });
+
+  // Setup: AI's Siege attacker, opp has a tanky front blocker (survives the hit,
+  // so attacking it is low-value) walling a juicy back-row income Location.
+  // The right play is to Siege past the blocker and delete the income.
+  function siegeChoiceState(): GameState {
+    const s = combatState();
+    const p1 = s.players[P1]!;
+    const p2 = s.players[P2]!;
+    p1.frontRow = [makeInstance(P1, "demolisher-x", "front")]; // atk 4, Siege
+    p1.backRow = []; // no income of our own → AI feels no need to hold a guard
+    p2.frontRow = [makeInstance(P2, "endless-linda", "front")]; // def 5, survives 4 dmg
+    p2.backRow = [makeInstance(P2, "strategic-reserve", "back")]; // income Location, def 3
+    return s;
+  }
+
+  it("greedy AI sieges the walled-off back-row income instead of the front blocker", () => {
+    const s = siegeChoiceState();
+    const back = s.players[P2]!.backRow[0]!;
+    const pick = pickAIIntent(s, P1, cards);
+    expect(pick?.kind).toBe("declareAttack");
+    expect(pick?.kind === "declareAttack" && pick.target.kind === "card" && pick.target.instanceId).toBe(back.instanceId);
+    // And it actually goes through, unblocked.
+    const after = applyIntent(s, pick!, cards).state;
+    expect(after.players[P2]!.backRow.some((c) => c.instanceId === back.instanceId)).toBe(false);
+  });
+
+  it("search AI also chooses to Siege the back-row income", () => {
+    const s = siegeChoiceState();
+    const back = s.players[P2]!.backRow[0]!;
+    const pick = pickSearchIntent(s, P1, cards, { rolloutCap: 200 });
+    expect(pick?.kind).toBe("declareAttack");
+    expect(pick?.kind === "declareAttack" && pick.target.kind === "card" && pick.target.instanceId).toBe(back.instanceId);
   });
 });
 
