@@ -132,6 +132,14 @@ export function DeckEditor({ deckId, onPlay }: DeckEditorProps) {
     setShowStarterPicker(false);
   }, []);
 
+  const deleteDeck = useCallback((id: string) => {
+    setSavedList((prev) => {
+      const next = prev.filter((d) => d.id !== id);
+      saveDecks(next);
+      return next;
+    });
+  }, []);
+
   const saveDeck = useCallback(() => {
     const deck = countsToDeck(deckName, "Mixed", counts);
     if (!legality.ok) {
@@ -249,18 +257,35 @@ export function DeckEditor({ deckId, onPlay }: DeckEditorProps) {
             transition={{ duration: 0.2 }}
           >
             <div className="ew-deck__picker-grid">
-              {allDecks.map((deck) => (
-                <button
-                  key={deck.id}
-                  className="ew-deck__picker-tile"
-                  onClick={() => loadDeck(deck)}
-                >
-                  <span className="ew-deck__picker-faction" style={{ color: FACTION_THEME[deck.faction as Faction]?.primary ?? "var(--ink-2)" }}>
-                    {deck.faction}
-                  </span>
-                  <span className="ew-deck__picker-name">{deck.name}</span>
-                </button>
-              ))}
+              {allDecks.map((deck) => {
+                const isSaved = savedList.some((d) => d.id === deck.id);
+                return (
+                  <div key={deck.id} className="ew-deck__picker-cell">
+                    <button
+                      className="ew-deck__picker-tile"
+                      onClick={() => loadDeck(deck)}
+                    >
+                      <span className="ew-deck__picker-faction" style={{ color: FACTION_THEME[deck.faction as Faction]?.primary ?? "var(--ink-2)" }}>
+                        {deck.faction}
+                      </span>
+                      <span className="ew-deck__picker-name">{deck.name}</span>
+                    </button>
+                    {isSaved && (
+                      <button
+                        className="ew-deck__picker-delete"
+                        title="Delete saved deck"
+                        aria-label={`Delete ${deck.name}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (confirm(`Delete saved deck "${deck.name}"?`)) deleteDeck(deck.id);
+                        }}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </motion.div>
         )}
