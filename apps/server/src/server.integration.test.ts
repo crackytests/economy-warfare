@@ -305,6 +305,95 @@ describe("online server integration (two real ws clients)", () => {
     b.close();
   });
 
+  it("honors a requested seat side and lists the table in the public lobby", async () => {
+    const watcher = new TestClient(url);
+    const a = new TestClient(url);
+    await Promise.all([watcher.open(), a.open()]);
+
+    watcher.send({ t: "listLobby" });
+    const initial = await watcher.waitFor<Extract<ServerMessage, { t: "lobby" }>>((m) => m.t === "lobby");
+    expect(initial.tables).toEqual([]);
+
+    // Alice sits in the p2 (bottom) seat of a fresh table.
+    a.send({ t: "joinRoom", roomId: "", playerName: "Alice", deck: DECK_A, seat: "p2" });
+    const joined = await a.waitFor<Extract<ServerMessage, { t: "joined" }>>((m) => m.t === "joined");
+    expect(joined.youAre).toBe("p2");
+
+    // The watcher gets a lobby push showing the half-filled table.
+    const lobby = await watcher.waitFor<Extract<ServerMessage, { t: "lobby" }>>(
+      (m) => m.t === "lobby" && m.tables.some((t) => t.code === joined.roomId),
+    );
+    const table = lobby.tables.find((t) => t.code === joined.roomId)!;
+    expect(table.seats.p2).toBe("Alice");
+    expect(table.seats.p1).toBeNull();
+    expect(table.status).toBe("waiting");
+
+    watcher.close();
+    a.close();
+  });
+
+  it("keeps private tables out of the public lobby", async () => {
+    const watcher = new TestClient(url);
+    const priv = new TestClient(url);
+    const pub = new TestClient(url);
+    await Promise.all([watcher.open(), priv.open(), pub.open()]);
+
+    watcher.send({ t: "listLobby" });
+    await watcher.waitFor((m) => m.t === "lobby");
+
+    priv.send({ t: "joinRoom", roomId: "", playerName: "Secret", deck: DECK_A, private: true });
+    const privJoined = await priv.waitFor<Extract<ServerMessage, { t: "joined" }>>((m) => m.t === "joined");
+
+    pub.send({ t: "joinRoom", roomId: "", playerName: "Public", deck: DECK_B });
+    const pubJoined = await pub.waitFor<Extract<ServerMessage, { t: "joined" }>>((m) => m.t === "joined");
+
+    // Wait for the lobby push that includes the public table; the private one
+    // must be absent from that same snapshot.
+    const lobby = await watcher.waitFor<Extract<ServerMessage, { t: "lobby" }>>(
+      (m) => m.t === "lobby" && m.tables.some((t) => t.code === pubJoined.roomId),
+    );
+    expect(lobby.tables.some((t) => t.code === privJoined.roomId)).toBe(false);
+
+    watcher.close();
+    priv.close();
+    pub.close();
+  });
+
+  it("lets a spectator watch a live game with both hands hidden, and rejects their intents", async () => {
+    const a = new TestClient(url);
+    const b = new TestClient(url);
+    await Promise.all([a.open(), b.open()]);
+    a.send({ t: "joinRoom", roomId: "", playerName: "Alice", deck: DECK_A });
+    const joined = await a.waitFor<Extract<ServerMessage, { t: "joined" }>>((m) => m.t === "joined");
+    const code = joined.roomId;
+    b.send({ t: "joinRoom", roomId: code, playerName: "Bob", deck: DECK_B });
+    await b.waitFor((m) => m.t === "joined");
+    await a.waitFor((m) => m.t === "state");
+    await b.waitFor((m) => m.t === "state");
+
+    const c = new TestClient(url);
+    await c.open();
+    c.send({ t: "spectateRoom", roomId: code });
+    await c.waitFor((m) => m.t === "spectating");
+    const sview = await c.waitFor<Extract<ServerMessage, { t: "state" }>>((m) => m.t === "state");
+    expect(sview.view.spectator).toBe(true);
+    // A spectator may see neither player's hand or deck.
+    for (const pid of ["p1", "p2"] as PlayerId[]) {
+      expect(sview.view.state.players[pid]!.hand.every((card) => card.cardId === "__hidden__")).toBe(true);
+      expect(sview.view.state.players[pid]!.deck.every((card) => card.cardId === "__hidden__")).toBe(true);
+    }
+
+    // A spectator has no seat, so any intent is rejected.
+    c.errors = [];
+    c.send({ t: "intent", roomId: code, intent: { kind: "endTurn", player: "p1" } });
+    const err = await c.waitFor<Extract<ServerMessage, { t: "error" }>>((m) => m.t === "error");
+    expect(err.code).toBe("NOT_IN_ROOM");
+
+    a.close();
+    b.close();
+    c.close();
+  });
+
   it("supports reconnect: a disconnected player rejoins by name and resumes the match", async () => {
     const a = new TestClient(url);
     const b = new TestClient(url);

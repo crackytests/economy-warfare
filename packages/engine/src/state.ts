@@ -314,6 +314,25 @@ export function redactFor(state: GameState, player: PlayerId): {
   return { state: view, youAre: player };
 }
 
+/**
+ * Spectator view: BOTH players' hands and decks are hidden (a watcher has no
+ * seat and must not see anyone's private information). Board zones stay visible
+ * so the live game can be followed. `youAre` is set to the bottom-of-board seat
+ * purely for a stable orientation; spectators never act.
+ */
+export function redactForSpectator(state: GameState): {
+  state: GameState;
+  youAre: PlayerId;
+} {
+  const view = cloneState(state);
+  for (const pid of view.turnOrder) {
+    const p = view.players[pid]!;
+    p.deck = p.deck.map((c) => hideCard(c));
+    p.hand = p.hand.map((c) => hideCard(c));
+  }
+  return { state: view, youAre: view.turnOrder[0]! };
+}
+
 /** Replace a card's identity with a face-down placeholder, keeping ownership. */
 function hideCard(c: CardInstance): CardInstance {
   return {

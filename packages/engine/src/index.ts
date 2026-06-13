@@ -116,6 +116,12 @@ export function redactFor(state: GameState, player: PlayerId): PlayerView {
   return { state: view, youAre };
 }
 
+/** Produce a spectator view: both players' hands and decks are hidden. */
+export function redactForSpectator(state: GameState): PlayerView {
+  const { state: view, youAre } = stateImpl.redactForSpectator(state);
+  return { state: view, youAre, spectator: true };
+}
+
 // ---- Win/loss -------------------------------------------------------------
 
 /** Returns the losing player id if a loss condition is met at end of turn, else null. */

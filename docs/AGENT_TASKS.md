@@ -292,6 +292,24 @@ Owner files: `packages/engine/src/ai.ts` (engine-hosted so server can use it too
   duplicated `displayDefFor` copies that had drifted (missed `defBonusUntilNextTurn` and all
   ATK auras). `Card` gained a `currentAtk` prop; buffed/debuffed stats render green/red.
 
+## Browsable lobby + spectating (2026-06) — protocol / API additions
+- **`@ew/shared`:** new `TableInfo` (lobby row: code, per-seat names, status, spectator count);
+  `PlayerView.spectator?`; `ClientMessage += { listLobby }`, `{ spectateRoom; roomId }`, and
+  `joinRoom` gained optional `seat?` (preferred side) + `private?` (unlisted room);
+  `ServerMessage += { lobby; tables }`, `{ spectating; roomId }`.
+- **`@ew/engine`:** new `redactForSpectator(state)` export — hides BOTH players' hands/decks
+  for non-seated watchers (mirrors `redactFor`).
+- **Server (`apps/server`):** rooms now track `spectators` + `isPrivate`; a module-level
+  `lobbySubscribers` set receives `lobby` pushes on any seat/status change; `handleSpectateRoom`
+  attaches watchers (spectator intents rejected via the existing `NOT_IN_ROOM` seat check);
+  seat side honored in `handleJoinRoom`. Integration tests cover seat choice, private-room
+  hiding, and spectator hidden-hands + intent rejection.
+- **Web:** `OnlineScreen` lobby is now a browsable grid of two-seat "tables" (click a seat to
+  sit; live tables show **Watch**; a trailing dashed "new table" mints a room; "Private table"
+  + join-by-code remain). `useOnlineServer` connects on mount, auto-subscribes to the lobby,
+  and exposes `tables` / `spectating` / `spectateRoom`. `OnlineBoard` gained a read-only
+  `spectator` mode.
+
 ## Confirmed by owner (2026-06-02)
 
 - ✅ Deck-building `maxCopies` = **4 per card**.

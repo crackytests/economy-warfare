@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CardDef, CardInstance, DeckList, GameState, Intent, Phase, PlayerId, TargetRef } from "@ew/shared";
+import type { CardDef, CardInstance, DeckList, GameState, Intent, Phase, PlayerId, TableInfo, TargetRef } from "@ew/shared";
 import { buildCardIndex, getLegalIntents, effectiveAtk, effectiveDef, type CardIndex } from "@ew/engine";
 import { useOnlineServer } from "../game/useOnlineServer";
 import { Card } from "../components/Card";
@@ -340,6 +340,7 @@ function OnlineBoard({
   events,
   error,
   gameOver,
+  spectator = false,
   onIntent,
   onLeave,
   onClearError,
@@ -351,6 +352,7 @@ function OnlineBoard({
   events: string[];
   error: string | null;
   gameOver: PlayerId | null;
+  spectator?: boolean;
   onIntent: (intent: Intent) => void;
   onLeave: () => void;
   onClearError: () => void;
@@ -370,9 +372,10 @@ function OnlineBoard({
   // Legal intents come from the pure engine run over the redacted view. Hidden
   // opponent cards are "__hidden__" and simply yield no extra affordances. This
   // is advisory UI only — the server re-validates every intent authoritatively.
+  // Spectators have no seat and never act, so they get no affordances at all.
   const myIntents = useMemo(
-    () => getLegalIntents(state, youAre, cards).filter((i) => i.kind !== "concede"),
-    [state, youAre, cards],
+    () => (spectator ? [] : getLegalIntents(state, youAre, cards).filter((i) => i.kind !== "concede")),
+    [spectator, state, youAre, cards],
   );
 
   const legalInstanceIds = useMemo(() => {
@@ -417,9 +420,14 @@ function OnlineBoard({
 
       <div className="ew-game__toolbar">
         <span className="ew-muted" style={{ padding: 0 }}>
-          Room: <strong>{roomId}</strong> · {isMyTurn ? "Your turn" : `${opp.name}'s turn`}
+          Room: <strong>{roomId}</strong> ·{" "}
+          {spectator
+            ? `Spectating — ${state.players[state.activePlayerId]?.name ?? ""}'s turn`
+            : isMyTurn
+              ? "Your turn"
+              : `${opp.name}'s turn`}
         </span>
-        {!gameOver && (
+        {!spectator && !gameOver && (
           <button
             className="ew-toolbar__btn ew-toolbar__btn--concede"
             onClick={() => onIntent({ kind: "concede", player: youAre })}
@@ -428,7 +436,7 @@ function OnlineBoard({
           </button>
         )}
         <button className="ew-toolbar__btn" onClick={onLeave}>
-          Leave
+          {spectator ? "Stop watching" : "Leave"}
         </button>
         {selectedId && (
           <button className="ew-toolbar__btn" onClick={() => setSelectedId(null)}>
@@ -487,6 +495,8 @@ function OnlineBoard({
               <div className="ew-actions">
                 {gameOver ? (
                   <span className="ew-muted">Game over.</span>
+                ) : spectator ? (
+                  <span className="ew-muted">Spectating — read only. You can click cards to inspect them.</span>
                 ) : myIntents.length === 0 ? (
                   <span className="ew-muted">
                     {isMyTurn ? "No actions available." : "Waiting for opponent..."}
@@ -561,13 +571,70 @@ function OnlineBoard({
   );
 }
 
+function initials(name: string): string {
+  return (name || "?").trim().slice(0, 2).toUpperCase();
+}
+
+/** One browsable table: two seats you can sit in, or a live game you can watch. */
+function LobbyTable({
+  table,
+  isNew,
+  disabled,
+  onSit,
+  onWatch,
+}: {
+  table: TableInfo;
+  isNew?: boolean;
+  disabled?: boolean;
+  onSit: (seat: PlayerId) => void;
+  onWatch?: () => void;
+}) {
+  const live = table.status === "live" || table.status === "over";
+  const statusText =
+    table.status === "live" ? "In game" : table.status === "over" ? "Finished" : table.status === "waiting" ? "Waiting" : isNew ? "New table" : "Open";
+
+  const seat = (id: PlayerId) => {
+    const name = id === "p1" ? table.seats.p1 : table.seats.p2;
+    const occupied = name != null;
+    const canSit = !occupied && !live && !disabled;
+    return (
+      <button
+        className="ew-table__seat"
+        disabled={!canSit}
+        aria-label={occupied ? `${name} is seated` : "Sit in this seat"}
+        onClick={() => canSit && onSit(id)}
+      >
+        <span className={"ew-table__disc" + (occupied ? " is-occupied" : canSit ? " is-open" : " is-empty")}>
+          {occupied ? initials(name!) : canSit ? "+" : ""}
+        </span>
+        <span className="ew-table__seat-name">{occupied ? name : canSit ? "Sit here" : "—"}</span>
+      </button>
+    );
+  };
+
+  return (
+    <div className={"ew-table" + (isNew ? " is-new" : "")}>
+      {seat("p1")}
+      <div className="ew-table__surface">
+        <span className="ew-table__code">{isNew ? "click a seat" : table.code}</span>
+        <span className={"ew-table__status ew-table__status--" + table.status}>{statusText}</span>
+        {live && onWatch && (
+          <button className="ew-btn ew-btn--sm" style={{ marginTop: 6 }} onClick={onWatch} disabled={disabled}>
+            Watch{table.spectators > 0 ? ` (${table.spectators})` : ""}
+          </button>
+        )}
+      </div>
+      {seat("p2")}
+    </div>
+  );
+}
+
 export function OnlineScreen({ deckId }: { deckId: string | null }) {
   const cards = useMemo(() => buildCardIndex(ALL_CARDS as CardDef[]), []);
   const selectableDecks = useMemo(() => allSelectableDecks(), []);
 
   const [roomCode, setRoomCode] = useState("");
   const [playerName, setPlayerName] = useState("Player");
-  const [joining, setJoining] = useState(false);
   const [chosenDeckId, setChosenDeckId] = useState<string>(
     () =>
       selectableDecks.find((d) => d.id === deckId)?.id ??
@@ -576,7 +643,8 @@ export function OnlineScreen({ deckId }: { deckId: string | null }) {
       "",
   );
 
-  const transport = useOnlineServer(joining);
+  // Connect as soon as the screen mounts so the lobby populates while browsing.
+  const transport = useOnlineServer(true);
   const {
     status,
     connected,
@@ -585,40 +653,27 @@ export function OnlineScreen({ deckId }: { deckId: string | null }) {
     roomId,
     inRoom,
     gameStarted,
+    spectating,
+    tables,
     events,
     error,
     gameOver,
     serverUrl,
     joinRoom,
+    spectateRoom,
     sendIntent,
     leaveRoom,
     clearError,
   } = transport;
 
   const chosenDeck = selectableDecks.find((d) => d.id === chosenDeckId) ?? selectableDecks[0]!;
+  const ready = !!playerName && connected;
 
-  useEffect(() => {
-    if (joining && !inRoom && (status === "closed" || status === "error")) {
-      setJoining(false);
-    }
-  }, [inRoom, joining, status]);
+  const sit = (code: string, seat: PlayerId) => joinRoom(code, playerName, chosenDeck, { seat });
+  const createPrivate = () => joinRoom("", playerName, chosenDeck, { private: true });
 
-  function handleJoin(create: boolean) {
-    setJoining(true);
-    // Defer the join until the socket is open; the hook re-issues a pending join
-    // on open, so we can call joinRoom immediately and it will flush on connect.
-    const code = create ? "" : roomCode.trim();
-    // Small microtask so `joining` flips and the effect opens the socket first.
-    queueMicrotask(() => joinRoom(code, playerName, chosenDeck));
-  }
-
-  function handleLeave() {
-    leaveRoom();
-    setJoining(false);
-  }
-
-  // ---- In-game ----
-  if (joining && gameStarted && view) {
+  // ---- In-game (player or spectator) ----
+  if (gameStarted && view) {
     return (
       <OnlineBoard
         state={view.state}
@@ -628,20 +683,35 @@ export function OnlineScreen({ deckId }: { deckId: string | null }) {
         events={events}
         error={error}
         gameOver={gameOver}
+        spectator={!!view.spectator}
         onIntent={(intent) => sendIntent({ ...intent, player: youAre ?? view.youAre } as Intent)}
-        onLeave={handleLeave}
+        onLeave={leaveRoom}
         onClearError={clearError}
       />
     );
   }
 
-  // ---- Waiting for opponent (joined a room, game not started) ----
-  if (joining && inRoom) {
+  // ---- Spectating, waiting for the game to begin ----
+  if (spectating) {
+    return (
+      <div className="ew-screen">
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)", maxWidth: 420 }}>
+          <h1 className="ew-screen__title">Watching {roomId}</h1>
+          <p className="ew-muted">Waiting for the game to start…</p>
+          {events.length > 0 && <p className="ew-muted">{events[events.length - 1]}</p>}
+          <button className="ew-btn" onClick={leaveRoom}>Back to lobby</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ---- Waiting for an opponent (you're seated; game not started) ----
+  if (inRoom) {
     return (
       <div className="ew-screen">
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)", maxWidth: 420 }}>
           <h1 className="ew-screen__title">Waiting for opponent</h1>
-          <p className="ew-screen__lead">Share this room code with your opponent:</p>
+          <p className="ew-screen__lead">You're seated at this table. Share the code or wait for someone to sit down:</p>
           <div
             style={{
               fontFamily: "var(--font-mono)",
@@ -660,90 +730,76 @@ export function OnlineScreen({ deckId }: { deckId: string | null }) {
           <p className="ew-muted">You are {youAre}. The game starts when a second player joins.</p>
           {events.length > 0 && <p className="ew-muted">{events[events.length - 1]}</p>}
           {error && <div style={{ color: "var(--danger)", fontSize: 12 }}>{error}</div>}
-          <button className="ew-btn" onClick={handleLeave}>
-            Cancel
-          </button>
+          <button className="ew-btn" onClick={leaveRoom}>Leave table</button>
         </div>
       </div>
     );
   }
 
-  // ---- Lobby ----
-  const connecting = joining && !inRoom;
+  // ---- Lobby (browsable tables) ----
+  const newTable: TableInfo = { code: "", seats: { p1: null, p2: null }, status: "open", spectators: 0 };
   return (
-    <div className="ew-screen">
-      <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)", maxWidth: 420 }}>
+    <div className="ew-screen ew-screen--wide">
+      <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)", width: "100%", maxWidth: 880 }}>
         <h1 className="ew-screen__title">Play Online</h1>
-        <p className="ew-screen__lead">
-          Create a room to get a code, or join a friend's room with theirs. The game starts when
-          both players are in.
-        </p>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-2)" }}>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontSize: 12, color: "var(--ink-2)" }}>Your Name</span>
-            <input
-              className="ew-deck__search"
-              value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
-              placeholder="Player"
-            />
+        <div className="ew-lobby__bar">
+          <label className="ew-lobby__field">
+            <span>Name</span>
+            <input className="ew-deck__search" value={playerName} onChange={(e) => setPlayerName(e.target.value)} placeholder="Player" />
           </label>
-
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontSize: 12, color: "var(--ink-2)" }}>Deck</span>
-            <select
-              className="ew-deck__sort"
-              value={chosenDeckId}
-              onChange={(e) => setChosenDeckId(e.target.value)}
-            >
+          <label className="ew-lobby__field" style={{ flex: 1, minWidth: 180 }}>
+            <span>Deck</span>
+            <select className="ew-deck__sort" value={chosenDeckId} onChange={(e) => setChosenDeckId(e.target.value)}>
               {selectableDecks.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {deckOptionLabel(d)}
-                </option>
+                <option key={d.id} value={d.id}>{deckOptionLabel(d)}</option>
               ))}
             </select>
           </label>
-
-          <button
-            className="ew-btn ew-btn--primary"
-            disabled={!playerName || connecting}
-            onClick={() => handleJoin(true)}
-          >
-            {connecting ? "Connecting..." : "Create Room"}
+          <button className="ew-btn ew-btn--sm" disabled={!ready} onClick={createPrivate} title="Create a private table not shown in the lobby">
+            Private table
           </button>
+        </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--ink-2)", fontSize: 12 }}>
-            <span style={{ flex: 1, height: 1, background: "var(--line)" }} />
-            or join with a code
-            <span style={{ flex: 1, height: 1, background: "var(--line)" }} />
-          </div>
-
-          <div style={{ display: "flex", gap: 8 }}>
-            <input
-              className="ew-deck__search"
-              style={{ flex: 1, textTransform: "uppercase" }}
-              value={roomCode}
-              onChange={(e) => setRoomCode(e.target.value.trim().toUpperCase())}
-              placeholder="e.g. K7Q2"
-            />
-            <button
-              className="ew-btn"
-              disabled={!roomCode || !playerName || connecting}
-              onClick={() => handleJoin(false)}
-            >
-              Join
-            </button>
-          </div>
-
-          <p className="ew-muted" style={{ fontSize: 11 }}>
-            Connection: {status}
-            {connected ? " — online" : ""}
-            {" · "}
-            Server: {serverUrl}
+        {!connected && (
+          <p className="ew-muted" style={{ fontSize: 12 }}>
+            {status === "connecting" ? "Connecting…" : `Offline — ${serverUrl}`}
           </p>
+        )}
+        {error && (
+          <div style={{ color: "var(--danger)", fontSize: 12, display: "flex", gap: 8 }}>
+            {error}
+            <button className="ew-panel__dismiss" onClick={clearError}>Dismiss</button>
+          </div>
+        )}
 
-          {error && <div style={{ color: "var(--danger)", fontSize: 12 }}>{error}</div>}
+        <p className="ew-screen__lead" style={{ margin: 0 }}>
+          {tables.length === 0 ? "No open tables yet — sit at a new one to start a game." : "Click a seat to sit down. Watch any game in progress."}
+        </p>
+
+        <div className="ew-lobby__grid">
+          {tables.map((t) => (
+            <LobbyTable key={t.code} table={t} disabled={!ready} onSit={(seat) => sit(t.code, seat)} onWatch={() => spectateRoom(t.code)} />
+          ))}
+          <LobbyTable table={newTable} isNew disabled={!ready} onSit={(seat) => sit("", seat)} />
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--ink-2)", fontSize: 12 }}>
+          <span style={{ flex: 1, height: 1, background: "var(--line)" }} />
+          or join a private table by code
+          <span style={{ flex: 1, height: 1, background: "var(--line)" }} />
+        </div>
+        <div style={{ display: "flex", gap: 8, maxWidth: 360 }}>
+          <input
+            className="ew-deck__search"
+            style={{ flex: 1, textTransform: "uppercase" }}
+            value={roomCode}
+            onChange={(e) => setRoomCode(e.target.value.trim().toUpperCase())}
+            placeholder="e.g. K7Q2"
+          />
+          <button className="ew-btn" disabled={!roomCode || !ready} onClick={() => joinRoom(roomCode, playerName, chosenDeck)}>
+            Join
+          </button>
         </div>
       </div>
     </div>

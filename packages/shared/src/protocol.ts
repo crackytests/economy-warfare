@@ -15,6 +15,7 @@ export interface PlayerView {
   state: GameState; // with opponent's hidden zones replaced by counts/face-down
   youAre: PlayerId;
   legalIntents?: Intent[]; // optional server hint for UI affordances
+  spectator?: boolean; // true when this view is for a non-seated watcher (both hands hidden, read-only)
 }
 
 export type Intent =
@@ -42,15 +43,41 @@ export type TargetRef =
 
 export const PLAYER_DIRECT = { kind: "player" } as const;
 
+// ---- Lobby (browsable rooms) ----------------------------------------------
+
+/** One row in the browsable lobby: a "table" with two seats. */
+export interface TableInfo {
+  code: string;
+  /** Occupant display names per engine seat id, or null if the seat is open. */
+  seats: { p1: string | null; p2: string | null };
+  /** open = no players, waiting = one seated, live = game running, over = finished. */
+  status: "open" | "waiting" | "live" | "over";
+  /** How many spectators are currently watching. */
+  spectators: number;
+}
+
 // ---- WebSocket envelope (server <-> client) -------------------------------
 
 export type ClientMessage =
-  | { t: "joinRoom"; roomId: string; playerName: string; deck: import("./types").DeckList }
+  | {
+      t: "joinRoom";
+      roomId: string;
+      playerName: string;
+      deck: import("./types").DeckList;
+      /** Preferred seat side; server honors it if free, otherwise picks the open one. */
+      seat?: PlayerId;
+      /** When minting a room (empty roomId), keep it out of the public lobby. */
+      private?: boolean;
+    }
+  | { t: "spectateRoom"; roomId: string }
+  | { t: "listLobby" }            // subscribe to lobby pushes
   | { t: "intent"; roomId: string; intent: Intent }
   | { t: "leaveRoom"; roomId: string };
 
 export type ServerMessage =
   | { t: "joined"; roomId: string; youAre: PlayerId }
+  | { t: "spectating"; roomId: string }
+  | { t: "lobby"; tables: TableInfo[] }
   | { t: "state"; view: PlayerView }
   | { t: "event"; message: string }     // transient toast / log line
   | { t: "error"; code: string; message: string }
