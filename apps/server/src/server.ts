@@ -346,6 +346,61 @@ function handleIntent(ws: WebSocket, roomId: string, intent: Intent): void {
   }
 }
 
+/**
+ * Restart a FINISHED game in place. With `swapSides`, the two seats trade engine
+ * ids (the old p2 becomes p1 and takes the first turn) so the players switch
+ * sides. Either seated player may trigger it — a single request is enough.
+ * Clients re-orient automatically from the `youAre` in the next state view.
+ */
+function handleRematch(ws: WebSocket, swapSides: boolean): void {
+  const mapping = wsToSeat.get(ws);
+  if (!mapping) {
+    send(ws, { t: "error", code: "NOT_IN_ROOM", message: "You are not seated in a room." });
+    return;
+  }
+  const room = rooms.get(mapping.roomId);
+  if (!room || !room.state) {
+    send(ws, { t: "error", code: "NO_GAME", message: "No game to rematch." });
+    return;
+  }
+  if (!room.state.winnerId) {
+    send(ws, { t: "error", code: "GAME_IN_PROGRESS", message: "Finish the current game first." });
+    return;
+  }
+  const p1 = room.seats.get("p1");
+  const p2 = room.seats.get("p2");
+  if (!p1 || !p2 || !p1.connected || !p2.connected) {
+    send(ws, { t: "error", code: "OPPONENT_GONE", message: "Both players must be present to rematch." });
+    return;
+  }
+
+  if (swapSides) {
+    room.seats.set("p1", p2);
+    room.seats.set("p2", p1);
+    if (p2.ws) wsToSeat.set(p2.ws, { roomId: room.id, playerId: "p1" });
+    if (p1.ws) wsToSeat.set(p1.ws, { roomId: room.id, playerId: "p2" });
+  }
+
+  // Fresh deterministic seed; the new p1 takes the first turn.
+  room.rngSeed = (Math.floor(randomSource() * 0x7fffffff) ^ Date.now()) >>> 0;
+  const a = room.seats.get("p1")!;
+  const b = room.seats.get("p2")!;
+  room.state = createGame({
+    gameId: room.id,
+    cards: room.cards,
+    rngSeed: room.rngSeed,
+    startingPlayerId: "p1",
+    players: [
+      { id: "p1", name: a.name, deck: a.deck },
+      { id: "p2", name: b.name, deck: b.deck },
+    ],
+  });
+  room.intentLog = [];
+  broadcast(room, { t: "event", message: swapSides ? "Sides switched — new game!" : "Rematch — new game!" });
+  broadcastState(room);
+  broadcastLobby(); // status flips back to "live"
+}
+
 function handleLeaveRoom(ws: WebSocket): void {
   // Spectator leaving: just stop watching; never touches seats or game state.
   const spectatedRoomId = wsToSpectatedRoom.get(ws);
@@ -415,6 +470,9 @@ function handleMessage(ws: WebSocket, raw: string): void {
       break;
     case "intent":
       handleIntent(ws, msg.roomId, msg.intent);
+      break;
+    case "rematch":
+      handleRematch(ws, msg.swapSides);
       break;
     case "leaveRoom":
       handleLeaveRoom(ws);

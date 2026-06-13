@@ -344,6 +344,7 @@ function OnlineBoard({
   spectatorCount = 0,
   onIntent,
   onLeave,
+  onSwitchSides,
   onClearError,
 }: {
   state: GameState;
@@ -357,6 +358,7 @@ function OnlineBoard({
   spectatorCount?: number;
   onIntent: (intent: Intent) => void;
   onLeave: () => void;
+  onSwitchSides?: () => void;
   onClearError: () => void;
 }) {
   const me = state.players[youAre]!;
@@ -457,13 +459,27 @@ function OnlineBoard({
           style={{
             padding: "var(--sp-3)",
             textAlign: "center",
-            color: "var(--accent)",
-            fontFamily: "var(--font-display)",
-            fontSize: 20,
-            fontWeight: 700,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "var(--sp-2)",
           }}
         >
-          {state.players[gameOver]?.name ?? gameOver} wins!
+          <span
+            style={{
+              color: "var(--accent)",
+              fontFamily: "var(--font-display)",
+              fontSize: 20,
+              fontWeight: 700,
+            }}
+          >
+            {state.players[gameOver]?.name ?? gameOver} wins!
+          </span>
+          {!spectator && onSwitchSides && (
+            <button className="ew-btn ew-btn--primary" onClick={onSwitchSides} title="Restart with both players swapping sides">
+              Switch sides &amp; rematch
+            </button>
+          )}
         </div>
       )}
 
@@ -668,6 +684,7 @@ export function OnlineScreen({ deckId }: { deckId: string | null }) {
     serverUrl,
     joinRoom,
     spectateRoom,
+    switchSides,
     sendIntent,
     leaveRoom,
     clearError,
@@ -694,6 +711,7 @@ export function OnlineScreen({ deckId }: { deckId: string | null }) {
         spectatorCount={view.spectators ?? 0}
         onIntent={(intent) => sendIntent({ ...intent, player: youAre ?? view.youAre } as Intent)}
         onLeave={leaveRoom}
+        onSwitchSides={switchSides}
         onClearError={clearError}
       />
     );

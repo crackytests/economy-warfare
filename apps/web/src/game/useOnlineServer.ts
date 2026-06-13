@@ -38,6 +38,8 @@ export interface OnlineTransport {
   joinRoom: (roomId: string, playerName: string, deck: DeckList, opts?: { seat?: PlayerId; private?: boolean }) => void;
   /** Watch a room as a spectator (no seat). */
   spectateRoom: (roomId: string) => void;
+  /** Restart a finished game with the two players swapping sides. */
+  switchSides: () => void;
   /** Submit an intent for the local player. */
   sendIntent: (intent: Intent) => void;
   /** Leave the current room (or stop spectating) and return to the lobby. */
@@ -221,6 +223,11 @@ export function useOnlineServer(enabled: boolean, url: string = resolveServerUrl
     [rawSend],
   );
 
+  const switchSides = useCallback(() => {
+    const roomId = stateRoomIdRef.current ?? lastJoinRef.current?.roomId ?? "";
+    rawSend({ t: "rematch", roomId, swapSides: true });
+  }, [rawSend]);
+
   const sendIntent = useCallback(
     (intent: Intent) => {
       const roomId = lastJoinRef.current?.roomId;
@@ -264,6 +271,7 @@ export function useOnlineServer(enabled: boolean, url: string = resolveServerUrl
     gameOver: state.gameOver,
     joinRoom,
     spectateRoom,
+    switchSides,
     sendIntent,
     leaveRoom,
     clearError,
@@ -280,7 +288,9 @@ function reduceMessage(s: InternalState, msg: ServerMessage): InternalState {
     case "lobby":
       return { ...s, tables: msg.tables };
     case "state":
-      return { ...s, view: msg.view, gameStarted: true, youAre: msg.view.youAre };
+      // Keep gameOver in sync with the authoritative state so a rematch (fresh
+      // state with no winner) clears the win banner.
+      return { ...s, view: msg.view, gameStarted: true, youAre: msg.view.youAre, gameOver: msg.view.state.winnerId ?? null };
     case "event":
       return { ...s, events: [...s.events.slice(-49), msg.message] };
     case "error":

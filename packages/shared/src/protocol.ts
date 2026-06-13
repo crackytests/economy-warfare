@@ -73,6 +73,7 @@ export type ClientMessage =
   | { t: "spectateRoom"; roomId: string }
   | { t: "listLobby" }            // subscribe to lobby pushes
   | { t: "intent"; roomId: string; intent: Intent }
+  | { t: "rematch"; roomId: string; swapSides: boolean } // restart a finished game (optionally swapping seats)
   | { t: "leaveRoom"; roomId: string };
 
 export type ServerMessage =
