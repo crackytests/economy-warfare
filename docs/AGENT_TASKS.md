@@ -309,6 +309,14 @@ Owner files: `packages/engine/src/ai.ts` (engine-hosted so server can use it too
   + join-by-code remain). `useOnlineServer` connects on mount, auto-subscribes to the lobby,
   and exposes `tables` / `spectating` / `spectateRoom`. `OnlineBoard` gained a read-only
   `spectator` mode.
+- **Switch sides (2026-06):** `ClientMessage += { rematch; roomId; swapSides }`; `handleRematch`
+  restarts a finished game in place, swapping the two seats (old p2 → p1, takes first turn) when
+  `swapSides`. Either seated player triggers it (single press). The board's end screen shows a
+  "Switch sides & rematch" button (`useOnlineServer.switchSides`); the `state` reducer now syncs
+  `gameOver` from the authoritative winner so a rematch clears the banner, and clients re-orient
+  from the view's `youAre`.
+- **Solo first/second (2026-06):** `GameBoard` has a "You go: 1st/2nd" toggle that restarts the
+  solo game with `startingPlayerId` set to the human or the AI (client-only; no engine change).
 
 ## Confirmed by owner (2026-06-02)
 

@@ -146,6 +146,7 @@ client (web)                     server (Node + ws)
   joinRoom + DeckList  ───────▶   create/join room (optional seat side / private), build game
   spectateRoom         ───────▶   watch a live room as a non-seated viewer
   intent               ───────▶   engine.applyIntent (authoritative; rejected for spectators)
+  rematch (swapSides)  ───────▶   restart a finished game in place, optionally swapping seats
                        ◀───────   state: redactFor(state, you)   (opponent zones hidden)
                        ◀───────   state: redactForSpectator(state) (both hands hidden) — spectators
                        ◀───────   joined / spectating / gameOver / error

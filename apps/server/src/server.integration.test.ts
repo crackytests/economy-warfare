@@ -401,6 +401,49 @@ describe("online server integration (two real ws clients)", () => {
     c.close();
   });
 
+  it("switch sides: either player can restart a finished game with seats swapped", async () => {
+    const a = new TestClient(url);
+    const b = new TestClient(url);
+    await Promise.all([a.open(), b.open()]);
+    a.send({ t: "joinRoom", roomId: "", playerName: "Alice", deck: DECK_A });
+    const joined = await a.waitFor<Extract<ServerMessage, { t: "joined" }>>((m) => m.t === "joined");
+    const code = joined.roomId;
+    b.send({ t: "joinRoom", roomId: code, playerName: "Bob", deck: DECK_B });
+    await b.waitFor((m) => m.t === "joined");
+    await a.waitFor((m) => m.t === "state");
+    await b.waitFor((m) => m.t === "state");
+    expect(a.youAre).toBe("p1");
+    expect(b.youAre).toBe("p2");
+
+    // Rematch is rejected while the game is still going.
+    a.errors = [];
+    a.send({ t: "rematch", roomId: code, swapSides: true });
+    const tooEarly = await a.waitFor<Extract<ServerMessage, { t: "error" }>>((m) => m.t === "error");
+    expect(tooEarly.code).toBe("GAME_IN_PROGRESS");
+
+    // End the game (Alice concedes -> Bob wins).
+    a.send({ t: "intent", roomId: code, intent: { kind: "concede", player: "p1" } });
+    await a.waitFor((m) => m.t === "gameOver");
+
+    // Bob (p2) presses switch sides; both restart with swapped seats.
+    b.send({ t: "rematch", roomId: code, swapSides: true });
+    const aFresh = await a.waitFor<Extract<ServerMessage, { t: "state" }>>(
+      (m) => m.t === "state" && !m.view.state.winnerId && m.view.youAre === "p2",
+    );
+    const bFresh = await b.waitFor<Extract<ServerMessage, { t: "state" }>>(
+      (m) => m.t === "state" && !m.view.state.winnerId && m.view.youAre === "p1",
+    );
+    // Alice is now p2, Bob is now p1 and takes the first turn; Alice keeps her deck.
+    expect(aFresh.view.youAre).toBe("p2");
+    expect(bFresh.view.youAre).toBe("p1");
+    expect(aFresh.view.state.activePlayerId).toBe("p1");
+    expect(aFresh.view.state.players.p2!.name).toBe("Alice");
+    expect(aFresh.view.state.players.p1!.name).toBe("Bob");
+
+    a.close();
+    b.close();
+  });
+
   it("supports reconnect: a disconnected player rejoins by name and resumes the match", async () => {
     const a = new TestClient(url);
     const b = new TestClient(url);
