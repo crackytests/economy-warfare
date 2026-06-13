@@ -31,8 +31,8 @@ function newGame(opts?: Partial<NewGameOptions>): GameState {
     rngSeed: 2468,
     startingPlayerId: P2,
     players: [
-      { id: P1, name: "Alice", deck: starterDeck("system-x-starter") },
-      { id: P2, name: "Bob", deck: starterDeck("yoko-imperium-starter") },
+      { id: P1, name: "Alice", deck: starterDeck("systemx-mobilize-starter") },
+      { id: P2, name: "Bob", deck: starterDeck("yoko-continuity-starter") },
     ],
     ...opts,
   });

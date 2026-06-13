@@ -347,8 +347,8 @@ if (process.argv[2] === "matrix") {
 // Trace mode: `sim.ts trace <deckA> <deckB> [seed] [startMoney]`
 if (process.argv[2] === "trace") {
   traceGame(
-    process.argv[3] ?? "yoko-imperium-starter",
-    process.argv[4] ?? "spooky-ones-starter",
+    process.argv[3] ?? "yoko-continuity-starter",
+    process.argv[4] ?? "spooky-reboot-starter",
     parseInt(process.argv[5] ?? "5000001", 10),
     parseInt(process.argv[6] ?? "5", 10),
   );

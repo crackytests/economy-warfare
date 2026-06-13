@@ -44,8 +44,8 @@ interface StarterDecksFile {
 }
 
 const STARTER_DECKS = (starterDecksJson as StarterDecksFile).decks;
-const DEFAULT_PLAYER_DECK = "system-x-starter";
-const DEFAULT_OPPONENT_DECK = "yoko-imperium-starter";
+const DEFAULT_PLAYER_DECK = "systemx-mobilize-starter";
+const DEFAULT_OPPONENT_DECK = "yoko-continuity-starter";
 const PLAYER_A = "you";
 const PLAYER_B = "opponent";
 
