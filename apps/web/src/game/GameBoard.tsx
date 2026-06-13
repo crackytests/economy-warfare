@@ -65,12 +65,13 @@ function createSoloGame(
   deckId: string | null | undefined,
   opponentDeckId: string,
   rngSeed: number,
+  youGoFirst = true,
 ): GameState {
   return createGame({
     gameId: `local-${deckId ?? "default"}-vs-${opponentDeckId}-${rngSeed}`,
     cards,
     rngSeed,
-    startingPlayerId: PLAYER_A,
+    startingPlayerId: youGoFirst ? PLAYER_A : PLAYER_B,
     players: [
       { id: PLAYER_A, name: "You", deck: deckById(deckId) },
       { id: PLAYER_B, name: "Opponent", deck: deckById(opponentDeckId) },
@@ -607,12 +608,13 @@ function WinnerOverlay({ state, onRestart, onCopyLog, copied }: { state: GameSta
 export function GameBoard({ mode, deckId }: GameBoardProps) {
   const cards = CARD_INDEX;
   const [aiDeckId, setAiDeckId] = useState(DEFAULT_OPPONENT_DECK);
+  const [goFirst, setGoFirst] = useState(true);
   // The exact starting state of the current game (cloned), so a finished game can
   // be replayed by applying the recorded intents to it — no deck/seed
   // reconstruction needed, immune to any deck-label confusion.
   const initialStateRef = useRef<GameState | null>(null);
   const [state, setState] = useState<GameState>(() => {
-    const s = createSoloGame(cards, deckId, DEFAULT_OPPONENT_DECK, freshSoloSeed());
+    const s = createSoloGame(cards, deckId, DEFAULT_OPPONENT_DECK, freshSoloSeed(), true);
     initialStateRef.current = JSON.parse(JSON.stringify(s));
     return s;
   });
@@ -812,9 +814,9 @@ export function GameBoard({ mode, deckId }: GameBoardProps) {
     setHoveredIntent(null);
   }, [state, cards]);
 
-  const resetGame = useCallback((nextAiDeckId = aiDeckId) => {
+  const resetGame = useCallback((nextAiDeckId = aiDeckId, nextGoFirst = goFirst) => {
     historyRef.current = [];
-    const fresh = createSoloGame(cards, deckId, nextAiDeckId, freshSoloSeed());
+    const fresh = createSoloGame(cards, deckId, nextAiDeckId, freshSoloSeed(), nextGoFirst);
     initialStateRef.current = JSON.parse(JSON.stringify(fresh));
     setState(fresh);
     setSelectedId(null);
@@ -824,7 +826,15 @@ export function GameBoard({ mode, deckId }: GameBoardProps) {
     setLunge(null);
     setActionFx(null);
     setAiPending(false);
-  }, [aiDeckId, cards, deckId]);
+  }, [aiDeckId, goFirst, cards, deckId]);
+
+  const toggleGoFirst = useCallback(() => {
+    setGoFirst((prev) => {
+      const next = !prev;
+      resetGame(aiDeckId, next);
+      return next;
+    });
+  }, [aiDeckId, resetGame]);
 
   // Export a self-contained record of the current game (seed + both decks + every
   // intent + the event log) to the clipboard, for AI debugging.
@@ -1042,6 +1052,13 @@ export function GameBoard({ mode, deckId }: GameBoardProps) {
         </button>
         <button className="ew-toolbar__btn" onClick={() => resetGame()}>
           New Game
+        </button>
+        <button
+          className="ew-toolbar__btn"
+          onClick={toggleGoFirst}
+          title="Choose whether you take the first turn (starts a new game)"
+        >
+          You go: {goFirst ? "1st" : "2nd"}
         </button>
         <button className="ew-toolbar__btn ew-toolbar__btn--ai-deck" onClick={cycleAiDeck} title="Change AI deck and start a new game">
           AI Deck: {aiDeckName}
