@@ -294,6 +294,10 @@ function reduceMessage(s: InternalState, msg: ServerMessage): InternalState {
     case "event":
       return { ...s, events: [...s.events.slice(-49), msg.message] };
     case "error":
+      // A server that predates the lobby protocol rejects our `listLobby`/lobby
+      // probes with UNKNOWN_MESSAGE. That's version skew, not a user-facing error
+      // — swallow it so it never shows a scary banner during a rolling deploy.
+      if (msg.code === "UNKNOWN_MESSAGE") return s;
       return { ...s, error: msg.message };
     case "gameOver":
       return { ...s, gameOver: msg.winnerId };
