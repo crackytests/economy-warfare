@@ -444,6 +444,38 @@ describe("online server integration (two real ws clients)", () => {
     b.close();
   });
 
+  it("reclaims an abandoned in-game room once both players disconnect (no ghost tables)", async () => {
+    const watcher = new TestClient(url);
+    const a = new TestClient(url);
+    const b = new TestClient(url);
+    await Promise.all([watcher.open(), a.open(), b.open()]);
+    watcher.send({ t: "listLobby" });
+    await watcher.waitFor((m) => m.t === "lobby");
+
+    a.send({ t: "joinRoom", roomId: "", playerName: "Alice", deck: DECK_A });
+    const joined = await a.waitFor<Extract<ServerMessage, { t: "joined" }>>((m) => m.t === "joined");
+    const code = joined.roomId;
+    b.send({ t: "joinRoom", roomId: code, playerName: "Bob", deck: DECK_B });
+    await a.waitFor((m) => m.t === "state");
+    await b.waitFor((m) => m.t === "state");
+    await watcher.waitFor((m) => m.t === "lobby" && m.tables.some((t) => t.code === code && t.status === "live"));
+
+    const latestLobby = () =>
+      [...watcher.messages].reverse().find((m) => m.t === "lobby") as Extract<ServerMessage, { t: "lobby" }>;
+
+    // One player closing leaves the room alive (reserved for reconnect).
+    a.close();
+    await new Promise((r) => setTimeout(r, 100));
+    expect(latestLobby().tables.some((t) => t.code === code)).toBe(true);
+
+    // The second player closing abandons the game -> the room is reclaimed.
+    b.close();
+    await new Promise((r) => setTimeout(r, 100));
+    expect(latestLobby().tables.some((t) => t.code === code)).toBe(false);
+
+    watcher.close();
+  });
+
   it("supports reconnect: a disconnected player rejoins by name and resumes the match", async () => {
     const a = new TestClient(url);
     const b = new TestClient(url);

@@ -430,12 +430,21 @@ function handleLeaveRoom(ws: WebSocket): void {
   const seat = room.seats.get(mapping.playerId);
 
   if (room.state && !room.state.winnerId) {
-    // Mid-game: keep the seat reserved for reconnect; just mark it disconnected.
+    // Mid-game: keep the seat reserved so the player can reconnect by name.
     if (seat) {
       seat.ws = null;
       seat.connected = false;
     }
-    broadcast(room, { t: "event", message: `${seat?.name ?? "A player"} disconnected — they can rejoin with the room code.` });
+    // If no player is connected anymore (and nobody is watching), the game is
+    // abandoned — reclaim the room so it stops lingering as a ghost "in game"
+    // table in the lobby. A single dropped player keeps the room alive for them.
+    const anyoneConnected = [...room.seats.values()].some((s) => s.connected);
+    if (!anyoneConnected && room.spectators.size === 0) {
+      rooms.delete(room.id);
+    } else {
+      broadcast(room, { t: "event", message: `${seat?.name ?? "A player"} disconnected — they can rejoin with the room code.` });
+    }
+    broadcastLobby(); // reflect the disconnect / removal in the lobby
     return;
   }
 
