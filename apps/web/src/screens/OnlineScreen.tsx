@@ -4,7 +4,15 @@ import { buildCardIndex, getLegalIntents, effectiveAtk, effectiveDef, type CardI
 import { useOnlineServer } from "../game/useOnlineServer";
 import { Card } from "../components/Card";
 import { ALL_CARDS, artUrl, getCard } from "../cards";
-import { ACTIVE_DECK_ID, loadActiveDeck, loadSavedDecks } from "../deck/storage";
+import {
+  ACTIVE_DECK_ID,
+  loadActiveDeck,
+  loadSavedDecks,
+  loadOnlineName,
+  saveOnlineName,
+  loadOnlineDeckId,
+  saveOnlineDeckId,
+} from "../deck/storage";
 import { KEYWORD_TEXT } from "../game/keywords";
 import starterDecksJson from "../../../../data/starter_decks.json";
 import "../game/GameBoard.css";
@@ -657,14 +665,21 @@ export function OnlineScreen({ deckId }: { deckId: string | null }) {
   const selectableDecks = useMemo(() => allSelectableDecks(), []);
 
   const [roomCode, setRoomCode] = useState("");
-  const [playerName, setPlayerName] = useState("Player");
+  const [playerName, setPlayerName] = useState(() => loadOnlineName() ?? "Player");
   const [chosenDeckId, setChosenDeckId] = useState<string>(
     () =>
+      // An explicit "play this deck" hand-off wins; otherwise restore the last
+      // deck used online, then fall back to a sensible default.
       selectableDecks.find((d) => d.id === deckId)?.id ??
+      selectableDecks.find((d) => d.id === loadOnlineDeckId())?.id ??
       selectableDecks.find((d) => d.id === "systemx-mobilize-starter")?.id ??
       selectableDecks[0]?.id ??
       "",
   );
+
+  // Remember the name + deck so they're pre-filled next time.
+  const updateName = (name: string) => { setPlayerName(name); saveOnlineName(name); };
+  const updateDeck = (id: string) => { setChosenDeckId(id); saveOnlineDeckId(id); };
 
   // Connect as soon as the screen mounts so the lobby populates while browsing.
   const transport = useOnlineServer(true);
@@ -772,11 +787,11 @@ export function OnlineScreen({ deckId }: { deckId: string | null }) {
         <div className="ew-lobby__bar">
           <label className="ew-lobby__field">
             <span>Name</span>
-            <input className="ew-deck__search" value={playerName} onChange={(e) => setPlayerName(e.target.value)} placeholder="Player" />
+            <input className="ew-deck__search" value={playerName} onChange={(e) => updateName(e.target.value)} placeholder="Player" />
           </label>
           <label className="ew-lobby__field" style={{ flex: 1, minWidth: 180 }}>
             <span>Deck</span>
-            <select className="ew-deck__sort" value={chosenDeckId} onChange={(e) => setChosenDeckId(e.target.value)}>
+            <select className="ew-deck__sort" value={chosenDeckId} onChange={(e) => updateDeck(e.target.value)}>
               {selectableDecks.map((d) => (
                 <option key={d.id} value={d.id}>{deckOptionLabel(d)}</option>
               ))}

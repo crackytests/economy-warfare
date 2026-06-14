@@ -31,3 +31,40 @@ export function loadActiveDeck(): DeckList | null {
     return null;
   }
 }
+
+// ---- Online lobby preferences (last-used name + deck) ----------------------
+
+const ONLINE_NAME_KEY = "ew-online-name";
+const ONLINE_DECK_KEY = "ew-online-deck";
+
+export function loadOnlineName(): string | null {
+  try {
+    return localStorage.getItem(ONLINE_NAME_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function saveOnlineName(name: string): void {
+  try {
+    localStorage.setItem(ONLINE_NAME_KEY, name);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function loadOnlineDeckId(): string | null {
+  try {
+    return localStorage.getItem(ONLINE_DECK_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function saveOnlineDeckId(id: string): void {
+  try {
+    localStorage.setItem(ONLINE_DECK_KEY, id);
+  } catch {
+    /* ignore */
+  }
+}
