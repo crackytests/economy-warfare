@@ -18,13 +18,36 @@ export interface Route {
 }
 
 const MODES: readonly Mode[] = ["home", "deck", "solo", "online", "guide"];
+const LAST_MODE_KEY = "ew:last-mode";
+
+function readStoredMode(): Mode | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const stored = window.sessionStorage.getItem(LAST_MODE_KEY);
+    return (MODES as readonly string[]).includes(stored ?? "")
+      ? (stored as Mode)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function rememberMode(mode: Mode): void {
+  if (typeof window === "undefined" || mode === "home") return;
+  try {
+    window.sessionStorage.setItem(LAST_MODE_KEY, mode);
+  } catch {
+    /* storage can be disabled in some embedded contexts */
+  }
+}
 
 function parse(search: string): Route {
   const params = new URLSearchParams(search);
   const raw = params.get("mode");
   const mode = (MODES as readonly string[]).includes(raw ?? "")
     ? (raw as Mode)
-    : "home";
+    : (readStoredMode() ?? "home");
+  if ((MODES as readonly string[]).includes(raw ?? "")) rememberMode(mode);
   return { mode, deckId: params.get("deck") };
 }
 
@@ -71,6 +94,7 @@ export function navigate(route: Partial<Route>): void {
   const search = toSearch(route);
   const url = `${window.location.pathname}${search}${window.location.hash}`;
   window.history.pushState(null, "", url);
+  if (route.mode) rememberMode(route.mode);
   notify();
 }
 
