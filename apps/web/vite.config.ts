@@ -8,12 +8,13 @@ import { fileURLToPath } from "node:url";
  * - `@ew/shared` / `@ew/engine` resolve to their TS source via aliases so we get
  *   live types without a separate build step (they are workspace packages whose
  *   package.json `main` already points at src, but the alias keeps HMR snappy).
- * - `base: "./"` makes the built bundle path-relative so it can be served from
- *   any sub-path (e.g. https://owner.example/play) when embedded in an iframe.
+ * - Production builds are served from CrackyReads' `/economy-warfare/` mount.
+ *   Use an absolute base there so deep links with query params reload with
+ *   stable asset URLs.
  */
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [react()],
-  base: "./",
+  base: command === "build" ? "/economy-warfare/" : "./",
   resolve: {
     alias: {
       "@ew/shared/ownership": fileURLToPath(
@@ -34,4 +35,4 @@ export default defineConfig({
     outDir: "dist",
     sourcemap: true,
   },
-});
+}));
