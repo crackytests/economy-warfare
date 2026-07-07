@@ -217,7 +217,7 @@ describe("triggered money ongoings", () => {
     p1.money = 0;
     p2.money = 5;
     p2.hasTakenFirstTurn = true;
-    // Phase Wraith: atk 2, Raid 1. Attack directly so the Raid fires.
+    // Phase Wraith: atk 3, Raid 1. Attack directly so the Raid fires.
     const attacker = makeInstance(P1, "phase-wraith", "front");
     p1.frontRow = [attacker];
     p2.frontRow = [];
@@ -225,9 +225,9 @@ describe("triggered money ongoings", () => {
 
     const r = applyIntent(s, { kind: "declareAttack", player: P1, attackerId: attacker.instanceId, target: { kind: "player", playerId: P2 } }, cards);
     expect(r.error).toBeUndefined();
-    // Direct hit = 2 (Black Budget only reduces Raid). Raid 1 reduced to 0 by
-    // Black Budget => nothing stolen. So P2: 5 - 2 = 3; P1 gains 0 from Raid.
-    expect(r.state.players[P2]!.money).toBe(3);
+    // Direct hit = 3 (Black Budget only reduces Raid). Raid 1 reduced to 0 by
+    // Black Budget => nothing stolen. So P2: 5 - 3 = 2; P1 gains 0 from Raid.
+    expect(r.state.players[P2]!.money).toBe(2);
     expect(r.state.players[P1]!.money).toBe(0);
   });
 });

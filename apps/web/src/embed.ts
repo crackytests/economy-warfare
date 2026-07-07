@@ -31,7 +31,7 @@
 /** Bootstrap config the host may pass on `init`. All fields optional. */
 export interface EmbedConfig {
   /** Launch mode; mirrors the `?mode=` query param. Query param wins if both set. */
-  mode?: "home" | "deck" | "solo" | "online";
+  mode?: "home" | "deck" | "solo" | "online" | "guide";
   /** Deck id to preselect; mirrors `&deck=`. */
   deckId?: string;
   /** Opaque player display name the host knows about. */

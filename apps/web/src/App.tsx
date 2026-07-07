@@ -2,7 +2,7 @@
  * App shell.
  *
  * Owns the chrome (header, close affordance, responsive frame) and routes
- * between the four screens by `?mode=` query param (see router.ts). The actual
+ * between the five screens by `?mode=` query param (see router.ts). The actual
  * Deck Editor (WS4) and Game Board (WS5) are rendered here but live in their
  * own folders as placeholder stubs the other workstreams fill in.
  */
@@ -15,12 +15,14 @@ import { Home } from "./screens/Home";
 import { SoloScreen } from "./screens/SoloScreen";
 import { OnlineScreen } from "./screens/OnlineScreen";
 import { DeckScreen } from "./screens/DeckScreen";
+import { HowToPlay } from "./screens/HowToPlay";
 
 const NAV: { mode: Mode; label: string }[] = [
   { mode: "home", label: "Menu" },
   { mode: "deck", label: "Deck Editor" },
   { mode: "solo", label: "Play Solo" },
   { mode: "online", label: "Play Online" },
+  { mode: "guide", label: "How to Play" },
 ];
 
 export function App() {
@@ -84,6 +86,7 @@ export function App() {
         {route.mode === "deck" && <DeckScreen deckId={deckId} />}
         {route.mode === "solo" && <SoloScreen deckId={deckId} />}
         {route.mode === "online" && <OnlineScreen deckId={deckId} />}
+        {route.mode === "guide" && <HowToPlay />}
       </main>
     </div>
   );

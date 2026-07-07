@@ -65,6 +65,14 @@ export function Home() {
           <h3>Play Online</h3>
           <p>Server-authoritative 1v1. Join with a room code.</p>
         </button>
+        <button
+          className="ew-home__tile"
+          onClick={() => navigate({ mode: "guide" })}
+        >
+          <span className="ew-home__tile-tag">Learn</span>
+          <h3>How to Play</h3>
+          <p>Rules, keywords, factions, and first-game strategy in one place.</p>
+        </button>
       </div>
 
       <section>

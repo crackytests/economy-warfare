@@ -4,20 +4,20 @@
  * The iframe launch contract is a URL like `/play?mode=solo&deck=<id>`, so the
  * whole app navigation model is just the `?mode=` (and optional `&deck=`) query
  * params plus History API updates. No react-router dependency: the surface is
- * four screens and we never use path segments (paths would break sub-path
+ * five screens and we never use path segments (paths would break sub-path
  * embedding). State lives in the URL so a host can deep-link the modal.
  */
 
 import { useSyncExternalStore } from "react";
 
-export type Mode = "home" | "deck" | "solo" | "online";
+export type Mode = "home" | "deck" | "solo" | "online" | "guide";
 
 export interface Route {
   mode: Mode;
   deckId: string | null;
 }
 
-const MODES: readonly Mode[] = ["home", "deck", "solo", "online"];
+const MODES: readonly Mode[] = ["home", "deck", "solo", "online", "guide"];
 
 function parse(search: string): Route {
   const params = new URLSearchParams(search);

@@ -577,7 +577,7 @@ describe("combat and effects", () => {
     p1.money = 3;
     p2.money = 5;
     p2.hasTakenFirstTurn = false;
-    const attacker = makeInstance(P1, "phase-wraith"); // ATK 2, Raid 1
+    const attacker = makeInstance(P1, "phase-wraith"); // ATK 3, Raid 1
     attacker.row = "front";
     p1.frontRow = [attacker];
     p2.frontRow = [];
@@ -588,11 +588,11 @@ describe("combat and effects", () => {
     const blocked = applyIntent(s, { kind: "declareAttack", player: P1, attackerId: attacker.instanceId, target: { kind: "player", playerId: P2 } }, cards);
     expect(blocked.error?.code).toBe("BAD_TARGET");
 
-    // Once P2 has taken a turn, the direct attack is legal: 2 direct + 1 Raid.
+    // Once P2 has taken a turn, the direct attack is legal: 3 direct + 1 Raid.
     p2.hasTakenFirstTurn = true;
     const r = applyIntent(s, { kind: "declareAttack", player: P1, attackerId: attacker.instanceId, target: { kind: "player", playerId: P2 } }, cards);
     expect(r.error).toBeUndefined();
-    expect(r.state.players[P2]!.money).toBe(2); // 5 - 2 - 1
+    expect(r.state.players[P2]!.money).toBe(1); // 5 - 3 - 1
     expect(r.state.players[P1]!.money).toBe(4); // stole 1
   });
 
@@ -611,7 +611,7 @@ describe("combat and effects", () => {
 
     const r = applyIntent(s, { kind: "declareAttack", player: P1, attackerId: attacker.instanceId, target: { kind: "player", playerId: P2 } }, cards);
     expect(r.error).toBeUndefined();
-    expect(r.state.players[P2]!.money).toBe(2); // 2 direct + 1 Raid = 3 lost
+    expect(r.state.players[P2]!.money).toBe(1); // 3 direct + 1 Raid = 4 lost
     expect(r.state.players[P1]!.money).toBe(4); // stole 1
   });
 
